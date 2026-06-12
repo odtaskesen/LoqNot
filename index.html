@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LoqNot — Sosyaloq Ajansı</title>
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="LoqNot" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/icon-180.png" />
+  <script>
+    (function () {
+      const theme = localStorage.getItem('loqnot-theme-v1');
+      if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['"DM Sans"', 'system-ui', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+  <style>
+    body { font-family: 'DM Sans', system-ui, sans-serif; }
+    .note-enter { animation: noteIn 0.35s ease-out forwards; }
+    @keyframes noteIn {
+      from { opacity: 0; transform: translateY(8px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .sidebar-item { transition: all 0.2s ease; }
+    .sidebar-item:hover { transform: translateX(4px); }
+    .sidebar-item.active { box-shadow: 0 4px 14px -2px rgba(0,0,0,0.15); }
+    .dark .sidebar-item.active { box-shadow: 0 4px 14px -2px rgba(0,0,0,0.45); }
+    textarea:focus, input:focus { outline: none; }
+    .note-link { color: #7c3aed; text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+    .note-link:hover { color: #6d28d9; }
+    .dark .note-link { color: #a78bfa; }
+    .dark .note-link:hover { color: #c4b5fd; }
+    #brand-nav { scrollbar-width: none; }
+    #brand-nav::-webkit-scrollbar { display: none; }
+    #install-hint-modal { backdrop-filter: blur(10px); }
+    .badge-inactive { background: #f1f5f9; color: #64748b; }
+    .dark .badge-inactive { background: #334155; color: #94a3b8; }
+    .note-archived { opacity: 0.45; }
+    .note-archived .note-body { text-decoration: line-through; text-decoration-color: rgba(100,116,139,0.6); }
+  </style>
+</head>
+<body class="min-h-screen overflow-x-hidden bg-gradient-to-br from-slate-50 via-white to-violet-50/40 text-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-violet-950/30 dark:text-slate-100 transition-colors duration-300">
+
+  <div class="flex min-h-screen flex-col lg:flex-row">
+    <aside class="w-full lg:w-64 shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200/80 bg-white/80 backdrop-blur-sm flex flex-col lg:sticky lg:top-0 lg:h-screen z-20 dark:bg-slate-900/85 dark:border-slate-700/80">
+      <div class="px-4 py-3 lg:p-5 border-b border-slate-100 dark:border-slate-800">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Markalar</p>
+      </div>
+      <nav id="brand-nav" class="flex gap-2 overflow-x-auto p-3 lg:block lg:flex-1 lg:space-y-1.5 lg:overflow-x-visible lg:overflow-y-auto lg:min-h-0"></nav>
+
+      <div class="p-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+        <button
+          id="toggle-brand-form"
+          type="button"
+          class="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-slate-300 text-xs font-semibold text-slate-500 hover:border-violet-300 hover:text-violet-600 hover:bg-violet-50/50 transition dark:border-slate-600 dark:text-slate-400 dark:hover:border-violet-500 dark:hover:text-violet-400 dark:hover:bg-violet-950/30"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+          Yeni Marka Ekle
+        </button>
+        <div id="brand-form" class="hidden space-y-2 p-3 rounded-xl bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-slate-700">
+          <input
+            id="brand-name-input"
+            type="text"
+            placeholder="Marka adı (örn. Özgür Koldaş)"
+            class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition dark:bg-slate-900 dark:border-slate-600 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-violet-500 dark:focus:ring-violet-900"
+          />
+          <div class="flex items-center gap-2">
+            <label class="text-xs text-slate-500 dark:text-slate-400 shrink-0">Renk</label>
+            <input id="brand-color-input" type="color" value="#6366f1" class="w-9 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-white dark:border-slate-600 dark:bg-slate-900" />
+            <span id="brand-color-preview" class="flex-1 text-xs font-medium text-slate-600 dark:text-slate-300">#6366f1</span>
+          </div>
+          <div class="flex gap-2">
+            <button id="save-brand-btn" type="button" class="flex-1 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-semibold hover:bg-violet-700 transition">Kaydet</button>
+            <button id="cancel-brand-btn" type="button" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-500 hover:bg-white transition dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700">İptal</button>
+          </div>
+          <p id="brand-form-error" class="hidden text-[11px] text-red-500"></p>
+        </div>
+      </div>
+
+      <div class="hidden lg:block p-4 border-t border-slate-100 dark:border-slate-800">
+        <p class="text-[11px] text-slate-400 text-center">Notlar bulut veritabanında saklanır</p>
+      </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col min-w-0 relative">
+      <button
+        id="theme-toggle"
+        type="button"
+        class="absolute top-4 right-4 lg:top-6 lg:right-6 z-10 p-2.5 rounded-xl border border-slate-200/80 bg-white/80 backdrop-blur-sm text-slate-500 hover:text-violet-600 hover:border-violet-200 hover:bg-violet-50 shadow-sm transition dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-400 dark:hover:text-amber-400 dark:hover:border-amber-500/30 dark:hover:bg-amber-950/20"
+        title="Tema değiştir"
+        aria-label="Tema değiştir"
+      >
+        <svg id="icon-sun" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+        </svg>
+        <svg id="icon-moon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+        </svg>
+      </button>
+
+      <header class="px-5 pt-8 pb-5 sm:px-6 lg:px-8 lg:pt-10 lg:pb-6 border-b border-slate-100/80 dark:border-slate-800/80 pr-20">
+        <h1 class="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight bg-gradient-to-r from-violet-600 via-fuchsia-500 to-orange-400 bg-clip-text text-transparent">
+          LoqNot
+        </h1>
+        <p class="mt-2 text-lg text-slate-500 dark:text-slate-400 font-medium">Sosyaloq Ajansı</p>
+        <p class="mt-1 text-sm text-slate-400">İlham ve Not Panosu</p>
+        <button
+          id="install-app-btn"
+          type="button"
+          class="mt-4 inline-flex sm:hidden items-center gap-2 rounded-xl border border-violet-300/70 bg-violet-50/80 px-3.5 py-2 text-sm font-semibold text-violet-700 shadow-sm shadow-violet-100 transition hover:bg-violet-100 dark:border-violet-500/40 dark:bg-violet-950/30 dark:text-violet-200 dark:shadow-violet-950/30"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v12m0 0l4-4m-4 4l-4-4M5 19h14"/>
+          </svg>
+          Ana ekrana ekle
+        </button>
+      </header>
+
+      <div class="flex-1 flex flex-col lg:flex-row gap-5 lg:gap-6 p-5 sm:p-6 lg:p-8">
+        <section class="flex-1 min-w-0 order-2 lg:order-1">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 id="section-title" class="text-xl font-semibold text-slate-800 dark:text-slate-100">Tüm Notlar</h2>
+              <p id="section-subtitle" class="text-sm text-slate-400 mt-0.5">Yükleniyor...</p>
+            </div>
+          </div>
+
+          <div class="relative mb-5">
+            <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input
+              id="search-input"
+              type="search"
+              placeholder="Notlarda ara…"
+              autocomplete="off"
+              class="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200/80 bg-white/80 text-sm text-slate-700 placeholder:text-slate-400 focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-violet-500 dark:focus:ring-violet-900/50"
+            />
+            <button
+              id="search-clear"
+              type="button"
+              class="hidden absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              title="Temizle"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+
+          <div id="notes-container" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"></div>
+          <div id="empty-state" class="hidden flex-col items-center justify-center py-20 text-center">
+            <div class="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4">
+              <svg class="w-8 h-8 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+              </svg>
+            </div>
+            <p id="empty-title" class="text-slate-500 dark:text-slate-400 font-medium">Henüz not yok</p>
+            <p id="empty-desc" class="text-sm text-slate-400 mt-1">Sağ üstten ilk ilhamını ekle</p>
+          </div>
+        </section>
+
+        <aside class="lg:w-80 shrink-0 order-1 lg:order-2">
+          <div class="lg:sticky lg:top-6 bg-white rounded-2xl border border-slate-200/80 shadow-sm shadow-slate-200/50 p-5 dark:bg-slate-800 dark:border-slate-700 dark:shadow-slate-900/50">
+            <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              Yeni Not
+            </h3>
+            <textarea
+              id="note-input"
+              rows="5"
+              placeholder="Fikrini yaz… Birden fazla marka geçerse hepsine etiketlenir."
+              class="w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-violet-300 focus:bg-white focus:ring-2 focus:ring-violet-100 transition dark:bg-slate-900/50 dark:border-slate-600 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-violet-500 dark:focus:bg-slate-900 dark:focus:ring-violet-900/40"
+            ></textarea>
+            <div class="mt-3 flex items-center justify-between gap-2">
+              <p class="text-[11px] text-slate-400 leading-tight">Boşluklu isimler de algılanır · linkler tıklanabilir olur</p>
+              <button
+                id="add-btn"
+                type="button"
+                class="shrink-0 px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white text-sm font-semibold hover:opacity-90 active:scale-95 transition shadow-md shadow-violet-200 dark:shadow-violet-900/40"
+              >
+                Ekle
+              </button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <div id="install-hint-modal" class="hidden fixed inset-0 z-50 bg-slate-950/60 px-5 py-6">
+    <div class="mx-auto mt-16 max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h3 class="text-lg font-bold text-slate-900 dark:text-slate-100">Ana ekrana ekle</h3>
+          <p id="install-hint-text" class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300"></p>
+        </div>
+        <button
+          id="install-hint-close"
+          type="button"
+          class="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          title="Kapat"
+          aria-label="Kapat"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="mt-4 rounded-xl bg-slate-100 p-3 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+        iPhone'da tarayıcının paylaş veya menü simgesine dokun, sonra <span class="font-semibold text-slate-900 dark:text-slate-100">Ana Ekrana Ekle</span> seçeneğini seç.
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl bg-slate-800 text-white text-sm font-medium shadow-lg opacity-0 pointer-events-none transition-opacity duration-300 z-50 dark:bg-slate-100 dark:text-slate-900"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+    import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyA9pKm5uGVHzztoKfF-i67pCeGIfqECR48",
+      authDomain: "loqnot-6c333.firebaseapp.com",
+      projectId: "loqnot-6c333",
+      storageBucket: "loqnot-6c333.firebasestorage.app",
+      messagingSenderId: "417339864971",
+      appId: "1:417339864971:web:ce9d4586290d0b90b9218e"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const DEFAULT_BRANDS = [
+      { id: 'stocado',      name: 'Stocado',       color: '#10b981' },
+      { id: 'ozgur-koldas', name: 'Özgür Koldaş', color: '#6366f1' },
+      { id: 'modaline',     name: 'ModaLine',      color: '#ec4899' },
+      { id: 'teknovibe',    name: 'TeknoVibe',     color: '#3b82f6' },
+      { id: 'yesilyol',     name: 'YeşilYol',      color: '#84cc16' },
+      { id: 'kahvedunyasi', name: 'KahveDünyası',  color: '#d97706' },
+      { id: 'fitlife',      name: 'FitLife',       color: '#f97316' },
+    ];
+
+    const UNCATEGORIZED = { id: 'uncategorized', name: 'Kategorilendirilememiş', color: '#94a3b8' };
+    const ALL_FILTER    = { id: 'all',           name: 'Tüm Notlar',            color: '#8b5cf6' };
+    const ARCHIVE_FILTER = { id: 'archive',      name: 'Arşiv',                 color: '#64748b' };
+
+    const THEME_KEY  = 'loqnot-theme-v1';
+
+    let brands = [];
+    let notes = [];
+    let activeFilter = 'all';
+    let searchQuery = '';
+    let editingNoteId = null;
+
+    const brandNav = document.getElementById('brand-nav');
+    const notesContainer = document.getElementById('notes-container');
+    const emptyState = document.getElementById('empty-state');
+    const emptyTitle = document.getElementById('empty-title');
+    const emptyDesc = document.getElementById('empty-desc');
+    const sectionTitle = document.getElementById('section-title');
+    const sectionSubtitle = document.getElementById('section-subtitle');
+    const noteInput = document.getElementById('note-input');
+    const addBtn = document.getElementById('add-btn');
+    const searchInput = document.getElementById('search-input');
+    const searchClear = document.getElementById('search-clear');
+    const themeToggle = document.getElementById('theme-toggle');
+    const toggleBrandForm = document.getElementById('toggle-brand-form');
+    const brandForm = document.getElementById('brand-form');
+    const brandNameInput = document.getElementById('brand-name-input');
+    const brandColorInput = document.getElementById('brand-color-input');
+    const brandColorPreview = document.getElementById('brand-color-preview');
+    const saveBrandBtn = document.getElementById('save-brand-btn');
+    const cancelBrandBtn = document.getElementById('cancel-brand-btn');
+    const brandFormError = document.getElementById('brand-form-error');
+    const installAppBtn = document.getElementById('install-app-btn');
+    const installHintModal = document.getElementById('install-hint-modal');
+    const installHintText = document.getElementById('install-hint-text');
+    const installHintClose = document.getElementById('install-hint-close');
+    const toast = document.getElementById('toast');
+    let deferredInstallPrompt = null;
+
+    function slugify(name) {
+      return name.trim().toLocaleLowerCase('tr-TR')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        || 'marka-' + Date.now();
+    }
+
+    function normalize(str) {
+      return str.toLocaleLowerCase('tr-TR').trim();
+    }
+
+    function hexToRgba(hex, alpha) {
+      const h = hex.replace('#', '');
+      return `rgba(${parseInt(h.slice(0,2),16)}, ${parseInt(h.slice(2,4),16)}, ${parseInt(h.slice(4,6),16)}, ${alpha})`;
+    }
+
+    function isDark() {
+      return document.documentElement.classList.contains('dark');
+    }
+
+    var showToast_t;
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.replace('opacity-0', 'opacity-100');
+      clearTimeout(showToast_t);
+      showToast_t = setTimeout(() => toast.classList.replace('opacity-100', 'opacity-0'), 1800);
+    }
+
+    function setTheme(dark) {
+      document.documentElement.classList.toggle('dark', dark);
+      localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
+    }
+
+    function isStandaloneApp() {
+      return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    }
+
+    function isIos() {
+      return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+    }
+
+    function showInstallHint() {
+      installHintText.textContent = isIos()
+        ? 'iPhone bu işlemi otomatik başlatmaya izin vermiyor. LoqNot uygulama gibi açılsın diye aşağıdaki kısa adımı kullan.'
+        : 'Tarayıcın otomatik kurulum penceresini göstermiyorsa aşağıdaki menü adımını kullanabilirsin.';
+      installHintModal.classList.remove('hidden');
+      installHintClose.focus();
+    }
+
+    function hideInstallHint() {
+      installHintModal.classList.add('hidden');
+    }
+
+    function updateInstallButton() {
+      if (!installAppBtn) return;
+      installAppBtn.classList.toggle('hidden', isStandaloneApp());
+    }
+
+    // Realtime Sync from Firebase Cloud Firestore
+    function initFirebaseSync() {
+      // Listen for Brands updates
+      onSnapshot(collection(db, "brands"), (snapshot) => {
+        let loadedBrands = [];
+        snapshot.forEach((doc) => {
+          loadedBrands.push({ id: doc.id, ...doc.data() });
+        });
+
+        // Seed with defaults if cloud database is fresh and completely empty
+        if (loadedBrands.length === 0) {
+          DEFAULT_BRANDS.forEach(async (b) => {
+            await setDoc(doc(db, "brands", b.id), { name: b.name, color: b.color });
+          });
+        } else {
+          brands = loadedBrands;
+          renderSidebar();
+          renderNotes();
+        }
+      });
+
+      // Listen for Notes updates
+      onSnapshot(collection(db, "notes"), (snapshot) => {
+        let loadedNotes = [];
+        snapshot.forEach((doc) => {
+          loadedNotes.push({ id: doc.id, ...doc.data() });
+        });
+        notes = loadedNotes;
+        renderSidebar();
+        renderNotes();
+      });
+    }
+
+    function getBrandMeta(id) {
+      if (id === UNCATEGORIZED.id) return UNCATEGORIZED;
+      if (id === ALL_FILTER.id) return ALL_FILTER;
+      if (id === ARCHIVE_FILTER.id) return ARCHIVE_FILTER;
+      return brands.find(b => b.id === id) || UNCATEGORIZED;
+    }
+
+    function detectBrandIds(text) {
+      const lower = normalize(text);
+      const sorted = [...brands].sort((a, b) => b.name.length - a.name.length);
+      const matched = sorted.filter(b => lower.includes(normalize(b.name))).map(b => b.id);
+      return matched.length ? matched : [UNCATEGORIZED.id];
+    }
+
+    function countByBrand(brandId) {
+      if (brandId === ARCHIVE_FILTER.id) return notes.filter(n => n.archived).length;
+      if (brandId === ALL_FILTER.id) return notes.filter(n => !n.archived).length;
+      return notes.filter(n => n.brandIds && n.brandIds.includes(brandId) && !n.archived).length;
+    }
+
+    function formatDate(iso) {
+      if(!iso) return '';
+      return new Date(iso).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function escapeHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    function linkify(text) {
+      return escapeHtml(text).replace(
+        /(https?:\/\/[^\s<]+[^\s<.,;:!?)}\]'"])/g,
+        url => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="note-link">${url}</a>`
+      );
+    }
+
+    function renderBrandBadge(brandId) {
+      const brand = getBrandMeta(brandId);
+      return `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200" style="background:${hexToRgba(brand.color, 0.14)}">
+        <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${brand.color}"></span>${escapeHtml(brand.name)}
+      </span>`;
+    }
+
+    function getFilteredNotes() {
+      let list;
+
+      if (activeFilter === ARCHIVE_FILTER.id) {
+        list = notes.filter(n => n.archived);
+      } else if (activeFilter === ALL_FILTER.id) {
+        list = notes.filter(n => !n.archived);
+      } else {
+        list = notes.filter(n => n.brandIds && n.brandIds.includes(activeFilter));
+        list.sort((a, b) => (a.archived === b.archived ? 0 : a.archived ? 1 : -1));
+      }
+
+      const q = normalize(searchQuery);
+      if (q) list = list.filter(n => normalize(n.text || '').includes(q));
+
+      return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+
+    function renderSidebar() {
+      const items = [
+        { ...ALL_FILTER, count: countByBrand(ALL_FILTER.id), deletable: false },
+        ...brands.map(b => ({ ...b, count: countByBrand(b.id), deletable: true })),
+        { ...UNCATEGORIZED, count: countByBrand(UNCATEGORIZED.id), deletable: false },
+        { ...ARCHIVE_FILTER, count: countByBrand(ARCHIVE_FILTER.id), deletable: false },
+      ];
+
+      const hoverCls = isDark() ? 'hover:bg-slate-800' : 'hover:bg-slate-50';
+
+      brandNav.innerHTML = items.map(item => {
+        const active = activeFilter === item.id;
+        const style = active ? `background:${hexToRgba(item.color, 0.14)};box-shadow:0 0 0 2px ${hexToRgba(item.color, 0.35)}` : '';
+        const textCls = active ? 'text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400';
+        const badgeStyle = active ? `background:${item.color};color:white` : '';
+
+        return `<div class="flex shrink-0 lg:shrink items-center gap-1 group/row">
+          <button type="button" data-filter="${item.id}" class="sidebar-item min-w-40 lg:min-w-0 lg:flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-left ${active ? 'active' : hoverCls}" style="${style}">
+            <span class="w-3 h-3 rounded-full shrink-0" style="background:${item.color}"></span>
+            <span class="flex-1 text-sm font-medium truncate ${textCls}">${escapeHtml(item.name)}</span>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${active ? '' : 'badge-inactive'}" style="${badgeStyle}">${item.count}</span>
+          </button>
+          ${item.deletable ? `<button type="button" data-delete-brand="${item.id}" class="hidden lg:block shrink-0 p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 opacity-0 group-hover/row:opacity-100 transition" title="Markayı sil">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>` : '<span class="hidden lg:block w-7 shrink-0"></span>'}
+        </div>`;
+      }).join('');
+    }
+
+    function brandIdsKey(ids) {
+      return [...ids].sort().join(',');
+    }
+
+    function renderNoteCardEdit(note) {
+      const badges = (note.brandIds || []).map(renderBrandBadge).join('');
+      return `<article class="note-enter relative bg-white dark:bg-slate-800 rounded-2xl border-2 border-violet-300 dark:border-violet-600 p-4 shadow-md ring-2 ring-violet-100 dark:ring-violet-900/40">
+        <div class="flex flex-wrap gap-1.5 mb-3">${badges}</div>
+        <textarea
+          data-edit-input="${note.id}"
+          rows="4"
+          class="w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-sm text-slate-700 leading-relaxed focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition dark:bg-slate-900/50 dark:border-slate-600 dark:text-slate-200 dark:focus:border-violet-500 dark:focus:ring-violet-900/40"
+        ></textarea>
+        <p class="mt-2 text-[11px] text-slate-400">Kaydedince marka etiketleri otomatik yenilenir · ⌘/Ctrl+Enter ile kaydet</p>
+        <div class="flex gap-2 mt-3">
+          <button type="button" data-save-edit="${note.id}" class="flex-1 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-semibold hover:bg-violet-700 transition">Kaydet</button>
+          <button type="button" data-cancel-edit="${note.id}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-500 hover:bg-slate-50 transition dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700">İptal</button>
+        </div>
+      </article>`;
+    }
+
+    function renderNoteCard(note) {
+      if (editingNoteId === note.id) return renderNoteCardEdit(note);
+
+      const archived = note.archived;
+      const badges = (note.brandIds || []).map(renderBrandBadge).join('');
+      const checkCls = archived
+        ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40'
+        : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30';
+      const actionCls = 'opacity-0 group-hover:opacity-100';
+
+      return `<article class="note-enter group relative bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-4 shadow-sm hover:shadow-md transition-all ${archived ? 'note-archived' : ''}">
+        <div class="flex items-start justify-between gap-2 mb-2">
+          <div class="flex flex-wrap gap-1.5 flex-1 min-w-0">${badges}</div>
+          <div class="flex items-center gap-0.5 shrink-0">
+            <button type="button" data-archive="${note.id}" class="p-1.5 rounded-lg transition ${checkCls} ${archived ? 'opacity-100' : actionCls}" title="${archived ? 'Arşivden çıkar' : 'Yapıldı / Arşivle'}">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            </button>
+            <button type="button" data-edit="${note.id}" class="${actionCls} p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition" title="Düzenle">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+            </button>
+            <button type="button" data-copy="${note.id}" class="${actionCls} p-1.5 rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-950/40 transition" title="Kopyala">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            </button>
+            <button type="button" data-delete="${note.id}" class="${actionCls} p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition" title="Sil">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="note-body text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap break-words">${linkify(note.text || '')}</div>
+        <p class="mt-3 text-[11px] text-slate-400">${formatDate(note.createdAt)}${archived ? ' · Arşivlendi' : ''}</p>
+      </article>`;
+    }
+
+    function focusEditInput(noteId) {
+      const ta = notesContainer.querySelector(`[data-edit-input="${noteId}"]`);
+      if (!ta) return;
+      const note = notes.find(n => n.id === noteId);
+      if (note) {
+        ta.value = note.text;
+        ta.focus();
+        ta.setSelectionRange(ta.value.length, ta.value.length);
+      }
+    }
+
+    async function saveNoteEdit(noteId) {
+      const note = notes.find(n => n.id === noteId);
+      const ta = notesContainer.querySelector(`[data-edit-input="${noteId}"]`);
+      if (!note || !ta) return;
+
+      const text = ta.value.trim();
+      if (!text) {
+        ta.classList.add('ring-2', 'ring-red-200', 'border-red-300');
+        setTimeout(() => ta.classList.remove('ring-2', 'ring-red-200', 'border-red-300'), 1200);
+        ta.focus();
+        return;
+      }
+
+      const prevIds = brandIdsKey(note.brandIds || []);
+      const newBrandIds = detectBrandIds(text);
+      editingNoteId = null;
+
+      try {
+        await updateDoc(doc(db, "notes", noteId), {
+          text: text,
+          brandIds: newBrandIds,
+          updatedAt: new Date().toISOString()
+        });
+
+        if (prevIds !== brandIdsKey(newBrandIds)) {
+          const names = newBrandIds.map(id => getBrandMeta(id).name).join(', ');
+          showToast(`Yeniden etiketlendi: ${names}`);
+        } else {
+          showToast('Not güncellendi');
+        }
+      } catch (error) {
+        showToast('Güncelleme başarısız oldu');
+      }
+    }
+
+    function cancelNoteEdit() {
+      editingNoteId = null;
+      renderNotes();
+    }
+
+    function renderNotes() {
+      const filtered = getFilteredNotes();
+      const meta = getBrandMeta(activeFilter);
+      const archivedInView = filtered.filter(n => n.archived).length;
+
+      sectionTitle.textContent = meta.name;
+      sectionSubtitle.textContent = searchQuery.trim()
+        ? `${filtered.length} sonuç`
+        : activeFilter !== ARCHIVE_FILTER.id && archivedInView > 0
+          ? `${filtered.length} not · ${archivedInView} tamamlandı`
+          : `${filtered.length} not`;
+
+      searchClear.classList.toggle('hidden', !searchQuery.trim());
+
+      if (filtered.length === 0) {
+        notesContainer.innerHTML = '';
+        emptyState.classList.replace('hidden', 'flex');
+        if (searchQuery.trim()) {
+          emptyTitle.textContent = 'Sonuç bulunamadı';
+          emptyDesc.textContent = `"${searchQuery}" ile eşleşen not yok`;
+        } else if (activeFilter === ARCHIVE_FILTER.id) {
+          emptyTitle.textContent = 'Arşiv boş';
+          emptyDesc.textContent = 'Tamamlanan notlar burada görünür';
+        } else {
+          emptyTitle.textContent = 'Henüz not yok';
+          emptyDesc.textContent = 'Sağdan ilk ilhamını ekle';
+        }
+        return;
+      }
+
+      emptyState.classList.replace('flex', 'hidden');
+      notesContainer.innerHTML = filtered.map(renderNoteCard).join('');
+      if (editingNoteId) focusEditInput(editingNoteId);
+    }
+
+    async function handleNotesClick(e) {
+      const editBtn = e.target.closest('[data-edit]');
+      if (editBtn) {
+        editingNoteId = editBtn.dataset.edit;
+        renderNotes();
+        return;
+      }
+
+      const saveEditBtn = e.target.closest('[data-save-edit]');
+      if (saveEditBtn) {
+        saveNoteEdit(saveEditBtn.dataset.saveEdit);
+        return;
+      }
+
+      const cancelEditBtn = e.target.closest('[data-cancel-edit]');
+      if (cancelEditBtn) {
+        cancelNoteEdit();
+        return;
+      }
+
+      const archiveBtn = e.target.closest('[data-archive]');
+      if (archiveBtn) {
+        const note = notes.find(n => n.id === archiveBtn.dataset.archive);
+        if (note) {
+          const targetState = !note.archived;
+          try {
+            await updateDoc(doc(db, "notes", note.id), {
+              archived: targetState,
+              archivedAt: targetState ? new Date().toISOString() : null
+            });
+            showToast(targetState ? 'Not arşivlendi' : 'Not geri alındı');
+          } catch (e) {
+            showToast('Hata oluştu');
+          }
+        }
+        return;
+      }
+
+      const deleteBtn = e.target.closest('[data-delete]');
+      if (deleteBtn) {
+        if (deleteBtn.dataset.delete === editingNoteId) editingNoteId = null;
+        try {
+          await deleteDoc(doc(db, "notes", deleteBtn.dataset.delete));
+          showToast('Not silindi');
+        } catch (e) {
+          showToast('Silme işlemi başarısız');
+        }
+        return;
+      }
+
+      const copyBtn = e.target.closest('[data-copy]');
+      if (copyBtn) {
+        const note = notes.find(n => n.id === copyBtn.dataset.copy);
+        if (note) navigator.clipboard.writeText(note.text)
+          .then(() => showToast('Not kopyalandı'))
+          .catch(() => showToast('Kopyalama başarısız'));
+      }
+    }
+
+    async function deleteBrand(brandId) {
+      const brand = brands.find(b => b.id === brandId);
+      if (!brand || !confirm(`"${brand.name}" markasını silmek istediğinize emin misiniz?`)) return;
+
+      try {
+        await deleteDoc(doc(db, "brands", brandId));
+
+        // Update existing notes mapped to this brand
+        const affectedNotes = notes.filter(n => n.brandIds && n.brandIds.includes(brandId));
+        for (const note of affectedNotes) {
+          const updatedIds = note.brandIds.filter(id => id !== brandId);
+          await updateDoc(doc(db, "notes", note.id), {
+            brandIds: updatedIds.length ? updatedIds : [UNCATEGORIZED.id]
+          });
+        }
+
+        if (activeFilter === brandId) activeFilter = 'all';
+        showToast(`"${brand.name}" silindi`);
+      } catch (e) {
+        showToast('Marka silinemedi');
+      }
+    }
+
+    async function addNote() {
+      const text = noteInput.value.trim();
+      if (!text) {
+        noteInput.focus();
+        noteInput.classList.add('ring-2', 'ring-red-200', 'border-red-300');
+        setTimeout(() => noteInput.classList.remove('ring-2', 'ring-red-200', 'border-red-300'), 1200);
+        return;
+      }
+
+      const noteId = crypto.randomUUID();
+      try {
+        await setDoc(doc(db, "notes", noteId), {
+          text,
+          brandIds: detectBrandIds(text),
+          archived: false,
+          createdAt: new Date().toISOString()
+        });
+        noteInput.value = '';
+        noteInput.focus();
+      } catch (error) {
+        showToast('Not buluta kaydedilemedi');
+      }
+    }
+
+    async function addBrand() {
+      const name = brandNameInput.value.trim();
+      const color = brandColorInput.value;
+      if (!name) { brandFormError.textContent = 'Marka adı gerekli'; brandFormError.classList.remove('hidden'); return; }
+      if (brands.some(b => normalize(b.name) === normalize(name))) {
+        brandFormError.textContent = 'Bu isimde bir marka zaten var'; brandFormError.classList.remove('hidden'); return;
+      }
+      let id = slugify(name);
+      if (brands.some(b => b.id === id)) id += '-' + Date.now();
+
+      try {
+        await setDoc(doc(db, "brands", id), { name, color });
+        brandForm.classList.add('hidden');
+        brandNameInput.value = '';
+        showToast(`"${name}" eklendi`);
+      } catch (error) {
+        showToast('Marka kaydedilemedi');
+      }
+    }
+
+    // Event delegation
+    brandNav.addEventListener('click', e => {
+      const del = e.target.closest('[data-delete-brand]');
+      if (del) { e.stopPropagation(); deleteBrand(del.dataset.deleteBrand); return; }
+      const filter = e.target.closest('[data-filter]');
+      if (filter) { activeFilter = filter.dataset.filter; renderSidebar(); renderNotes(); }
+    });
+
+    notesContainer.addEventListener('click', handleNotesClick);
+
+    notesContainer.addEventListener('keydown', e => {
+      const ta = e.target.closest('[data-edit-input]');
+      if (!ta) return;
+      if (e.key === 'Escape') { e.preventDefault(); cancelNoteEdit(); }
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveNoteEdit(ta.dataset.editInput); }
+    });
+
+    themeToggle.addEventListener('click', () => {
+      setTheme(!isDark());
+      renderSidebar();
+    });
+
+    searchInput.addEventListener('input', () => {
+      searchQuery = searchInput.value;
+      renderNotes();
+    });
+
+    searchClear.addEventListener('click', () => {
+      searchInput.value = '';
+      searchQuery = '';
+      renderNotes();
+      searchInput.focus();
+    });
+
+    toggleBrandForm.addEventListener('click', () => brandForm.classList.toggle('hidden'));
+    cancelBrandBtn.addEventListener('click', () => { brandForm.classList.add('hidden'); brandFormError.classList.add('hidden'); });
+    saveBrandBtn.addEventListener('click', addBrand);
+    brandColorInput.addEventListener('input', () => { brandColorPreview.textContent = brandColorInput.value; });
+    brandNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') addBrand(); });
+    addBtn.addEventListener('click', addNote);
+    noteInput.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addNote(); });
+
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      updateInstallButton();
+    });
+
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      updateInstallButton();
+      showToast('LoqNot ana ekrana eklendi');
+    });
+
+    installAppBtn.addEventListener('click', async () => {
+      if (isStandaloneApp()) {
+        updateInstallButton();
+        return;
+      }
+
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice.catch(() => null);
+        deferredInstallPrompt = null;
+        updateInstallButton();
+        return;
+      }
+
+      showInstallHint();
+    });
+
+    installHintClose.addEventListener('click', hideInstallHint);
+    installHintModal.addEventListener('click', e => {
+      if (e.target === installHintModal) hideInstallHint();
+    });
+    window.addEventListener('keydown', e => {
+      if (e.key === 'Escape') hideInstallHint();
+    });
+    updateInstallButton();
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+
+    // Start cloud database connection
+    initFirebaseSync();
+  </script>
+</body>
+</html>
