@@ -33,7 +33,10 @@
     };
   </script>
   <style>
-    body { font-family: 'DM Sans', system-ui, sans-serif; }
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: #faf7f0 !important;
+    }
     .note-enter { animation: noteIn 0.35s ease-out forwards; }
     @keyframes noteIn {
       from { opacity: 0; transform: translateY(8px) scale(0.98); }
@@ -52,9 +55,50 @@
     #brand-nav::-webkit-scrollbar { display: none; }
     #install-hint-modal { backdrop-filter: blur(10px); }
     .badge-inactive { background: #f1f5f9; color: #64748b; }
-    .dark .badge-inactive { background: #334155; color: #94a3b8; }
-    .note-archived { opacity: 0.45; }
-    .note-archived .note-body { text-decoration: line-through; text-decoration-color: rgba(100,116,139,0.6); }
+    html:not(.dark) aside { background: rgba(255,251,242,0.88) !important; border-color: #eadfce !important; }
+    html:not(.dark) header,
+    html:not(.dark) aside > div { border-color: #efe4d2 !important; }
+    html:not(.dark) article,
+    html:not(.dark) #brand-form,
+    html:not(.dark) #install-hint-modal > div,
+    html:not(.dark) .lg\:sticky { background: #fffdf7 !important; border-color: #eadfce !important; }
+    html:not(.dark) input,
+    html:not(.dark) textarea,
+    html:not(.dark) #theme-toggle { background: rgba(255,251,242,0.88) !important; border-color: #eadfce !important; }
+    html:not(.dark) input:focus,
+    html:not(.dark) textarea:focus { background: #fffdf7 !important; }
+    html:not(.dark) .sidebar-item:hover { background: #f5eddf !important; }
+    .dark .badge-inactive { background: #242428; color: #a1a1aa; }
+    .dark body { background: #050505 !important; color: #f4f4f5; }
+    .dark aside { background: rgba(8,8,9,0.94) !important; border-color: #242428 !important; }
+    .dark header,
+    .dark aside > div { border-color: #242428 !important; }
+    .dark article,
+    .dark #brand-form,
+    .dark #install-hint-modal > div,
+    .dark .lg\:sticky { background: #111113 !important; border-color: #2a2a2e !important; box-shadow: none !important; }
+    .dark input,
+    .dark textarea,
+    .dark #theme-toggle { background: #0b0b0d !important; border-color: #2a2a2e !important; }
+    .dark input:focus,
+    .dark textarea:focus { background: #101012 !important; border-color: #7c3aed !important; }
+    .dark .sidebar-item:hover { background: #161618 !important; }
+    .note-archived { opacity: 0.72; }
+    .note-archived .note-body {
+      text-decoration: line-through;
+      text-decoration-color: rgba(15,23,42,0.9);
+      text-decoration-thickness: 2px;
+      text-decoration-skip-ink: none;
+    }
+    .dark .note-archived {
+      background: #08080a !important;
+      border-color: #303036 !important;
+      opacity: 0.82;
+    }
+    .dark .note-archived .note-body {
+      color: #a1a1aa !important;
+      text-decoration-color: rgba(244,244,245,0.88);
+    }
   </style>
 </head>
 <body class="min-h-screen overflow-x-hidden bg-gradient-to-br from-slate-50 via-white to-violet-50/40 text-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-violet-950/30 dark:text-slate-100 transition-colors duration-300">
@@ -84,11 +128,18 @@
             placeholder="Marka adı (örn. Özgür Koldaş)"
             class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition dark:bg-slate-900 dark:border-slate-600 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-violet-500 dark:focus:ring-violet-900"
           />
+          <input
+            id="brand-aliases-input"
+            type="text"
+            placeholder="Kısaltmalar (örn. ok, ök, ozgur, adorel)"
+            class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition dark:bg-slate-900 dark:border-slate-600 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-violet-500 dark:focus:ring-violet-900"
+          />
           <div class="flex items-center gap-2">
             <label class="text-xs text-slate-500 dark:text-slate-400 shrink-0">Renk</label>
             <input id="brand-color-input" type="color" value="#6366f1" class="w-9 h-9 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-white dark:border-slate-600 dark:bg-slate-900" />
             <span id="brand-color-preview" class="flex-1 text-xs font-medium text-slate-600 dark:text-slate-300">#6366f1</span>
           </div>
+          <p class="text-[11px] text-slate-400">Virgulle ayir: `ok, ök, kk, adorel`</p>
           <div class="flex gap-2">
             <button id="save-brand-btn" type="button" class="flex-1 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-semibold hover:bg-violet-700 transition">Kaydet</button>
             <button id="cancel-brand-btn" type="button" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-500 hover:bg-white transition dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700">İptal</button>
@@ -254,17 +305,18 @@
     const db = getFirestore(app);
 
     const DEFAULT_BRANDS = [
-      { id: 'stocado',      name: 'Stocado',       color: '#10b981' },
-      { id: 'ozgur-koldas', name: 'Özgür Koldaş', color: '#6366f1' },
-      { id: 'modaline',     name: 'ModaLine',      color: '#ec4899' },
-      { id: 'teknovibe',    name: 'TeknoVibe',     color: '#3b82f6' },
-      { id: 'yesilyol',     name: 'YeşilYol',      color: '#84cc16' },
-      { id: 'kahvedunyasi', name: 'KahveDünyası',  color: '#d97706' },
-      { id: 'fitlife',      name: 'FitLife',       color: '#f97316' },
+      { id: 'stocado',      name: 'Stocado',       color: '#10b981', aliases: [] },
+      { id: 'ozgur-koldas', name: 'Özgür Koldaş',  color: '#6366f1', aliases: [] },
+      { id: 'modaline',     name: 'ModaLine',      color: '#ec4899', aliases: [] },
+      { id: 'teknovibe',    name: 'TeknoVibe',     color: '#3b82f6', aliases: [] },
+      { id: 'yesilyol',     name: 'YeşilYol',      color: '#84cc16', aliases: [] },
+      { id: 'kahvedunyasi', name: 'KahveDünyası',  color: '#d97706', aliases: [] },
+      { id: 'fitlife',      name: 'FitLife',       color: '#f97316', aliases: [] },
     ];
 
     const UNCATEGORIZED = { id: 'uncategorized', name: 'Kategorilendirilememiş', color: '#94a3b8' };
     const ALL_FILTER    = { id: 'all',           name: 'Tüm Notlar',            color: '#8b5cf6' };
+    const STARRED_FILTER = { id: 'starred',      name: 'Yıldızlılar',           color: '#f59e0b' };
     const ARCHIVE_FILTER = { id: 'archive',      name: 'Arşiv',                 color: '#64748b' };
 
     const THEME_KEY  = 'loqnot-theme-v1';
@@ -274,6 +326,7 @@
     let activeFilter = 'all';
     let searchQuery = '';
     let editingNoteId = null;
+    let editingBrandId = null;
 
     const brandNav = document.getElementById('brand-nav');
     const notesContainer = document.getElementById('notes-container');
@@ -290,6 +343,7 @@
     const toggleBrandForm = document.getElementById('toggle-brand-form');
     const brandForm = document.getElementById('brand-form');
     const brandNameInput = document.getElementById('brand-name-input');
+    const brandAliasesInput = document.getElementById('brand-aliases-input');
     const brandColorInput = document.getElementById('brand-color-input');
     const brandColorPreview = document.getElementById('brand-color-preview');
     const saveBrandBtn = document.getElementById('save-brand-btn');
@@ -311,6 +365,58 @@
 
     function normalize(str) {
       return str.toLocaleLowerCase('tr-TR').trim();
+    }
+
+    function parseAliases(value) {
+      return [...new Set(
+        value.split(',')
+          .map(alias => alias.trim())
+          .filter(Boolean)
+      )];
+    }
+
+    function getBrandTerms(brand) {
+      return [brand.name, ...(brand.aliases || [])]
+        .map(term => normalize(term))
+        .filter(Boolean);
+    }
+
+    function tokenizeText(text) {
+      return normalize(text)
+        .split(/[^a-z0-9\u00c0-\u024f\u1e00-\u1eff]+/i)
+        .filter(Boolean);
+    }
+
+    function matchesBrandTerm(text, tokens, term) {
+      if (!term) return false;
+      return term.includes(' ') ? text.includes(term) : tokens.includes(term);
+    }
+
+    function resetBrandForm() {
+      editingBrandId = null;
+      brandNameInput.value = '';
+      brandAliasesInput.value = '';
+      brandColorInput.value = '#6366f1';
+      brandColorPreview.textContent = '#6366f1';
+      brandFormError.classList.add('hidden');
+    }
+
+    function openBrandForm(brand = null) {
+      brandForm.classList.remove('hidden');
+      brandFormError.classList.add('hidden');
+      if (!brand) {
+        resetBrandForm();
+        brandForm.classList.remove('hidden');
+        brandNameInput.focus();
+        return;
+      }
+
+      editingBrandId = brand.id;
+      brandNameInput.value = brand.name || '';
+      brandAliasesInput.value = (brand.aliases || []).join(', ');
+      brandColorInput.value = brand.color || '#6366f1';
+      brandColorPreview.textContent = brandColorInput.value;
+      brandNameInput.focus();
     }
 
     function hexToRgba(hex, alpha) {
@@ -366,13 +472,13 @@
       onSnapshot(collection(db, "brands"), (snapshot) => {
         let loadedBrands = [];
         snapshot.forEach((doc) => {
-          loadedBrands.push({ id: doc.id, ...doc.data() });
+          loadedBrands.push({ id: doc.id, aliases: [], ...doc.data() });
         });
 
         // Seed with defaults if cloud database is fresh and completely empty
         if (loadedBrands.length === 0) {
           DEFAULT_BRANDS.forEach(async (b) => {
-            await setDoc(doc(db, "brands", b.id), { name: b.name, color: b.color });
+            await setDoc(doc(db, "brands", b.id), { name: b.name, color: b.color, aliases: b.aliases || [] });
           });
         } else {
           brands = loadedBrands;
@@ -396,21 +502,34 @@
     function getBrandMeta(id) {
       if (id === UNCATEGORIZED.id) return UNCATEGORIZED;
       if (id === ALL_FILTER.id) return ALL_FILTER;
+      if (id === STARRED_FILTER.id) return STARRED_FILTER;
       if (id === ARCHIVE_FILTER.id) return ARCHIVE_FILTER;
       return brands.find(b => b.id === id) || UNCATEGORIZED;
     }
 
     function detectBrandIds(text) {
       const lower = normalize(text);
-      const sorted = [...brands].sort((a, b) => b.name.length - a.name.length);
-      const matched = sorted.filter(b => lower.includes(normalize(b.name))).map(b => b.id);
+      const tokens = tokenizeText(text);
+      const sorted = [...brands].sort((a, b) => getBrandTerms(b).join(' ').length - getBrandTerms(a).join(' ').length);
+      const matched = sorted
+        .filter(brand => getBrandTerms(brand).some(term => matchesBrandTerm(lower, tokens, term)))
+        .map(brand => brand.id);
       return matched.length ? matched : [UNCATEGORIZED.id];
     }
 
     function countByBrand(brandId) {
       if (brandId === ARCHIVE_FILTER.id) return notes.filter(n => n.archived).length;
+      if (brandId === STARRED_FILTER.id) return notes.filter(n => n.starred && !n.archived).length;
       if (brandId === ALL_FILTER.id) return notes.filter(n => !n.archived).length;
       return notes.filter(n => n.brandIds && n.brandIds.includes(brandId) && !n.archived).length;
+    }
+
+    function sortNotes(list) {
+      return [...list].sort((a, b) => {
+        const starDiff = Number(!!b.starred) - Number(!!a.starred);
+        if (starDiff !== 0) return starDiff;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
     }
 
     function formatDate(iso) {
@@ -443,22 +562,24 @@
 
       if (activeFilter === ARCHIVE_FILTER.id) {
         list = notes.filter(n => n.archived);
+      } else if (activeFilter === STARRED_FILTER.id) {
+        list = notes.filter(n => n.starred && !n.archived);
       } else if (activeFilter === ALL_FILTER.id) {
         list = notes.filter(n => !n.archived);
       } else {
-        list = notes.filter(n => n.brandIds && n.brandIds.includes(activeFilter));
-        list.sort((a, b) => (a.archived === b.archived ? 0 : a.archived ? 1 : -1));
+        list = notes.filter(n => n.brandIds && n.brandIds.includes(activeFilter) && !n.archived);
       }
 
       const q = normalize(searchQuery);
       if (q) list = list.filter(n => normalize(n.text || '').includes(q));
 
-      return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      return sortNotes(list);
     }
 
     function renderSidebar() {
       const items = [
         { ...ALL_FILTER, count: countByBrand(ALL_FILTER.id), deletable: false },
+        { ...STARRED_FILTER, count: countByBrand(STARRED_FILTER.id), deletable: false },
         ...brands.map(b => ({ ...b, count: countByBrand(b.id), deletable: true })),
         { ...UNCATEGORIZED, count: countByBrand(UNCATEGORIZED.id), deletable: false },
         { ...ARCHIVE_FILTER, count: countByBrand(ARCHIVE_FILTER.id), deletable: false },
@@ -478,7 +599,10 @@
             <span class="flex-1 text-sm font-medium truncate ${textCls}">${escapeHtml(item.name)}</span>
             <span class="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${active ? '' : 'badge-inactive'}" style="${badgeStyle}">${item.count}</span>
           </button>
-          ${item.deletable ? `<button type="button" data-delete-brand="${item.id}" class="hidden lg:block shrink-0 p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 opacity-0 group-hover/row:opacity-100 transition" title="Markayı sil">
+          ${item.deletable ? `<button type="button" data-edit-brand="${item.id}" class="shrink-0 p-1.5 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 lg:opacity-0 group-hover/row:lg:opacity-100 transition" title="Markayı düzenle">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+          </button>
+          <button type="button" data-delete-brand="${item.id}" class="shrink-0 p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 lg:opacity-0 group-hover/row:lg:opacity-100 transition" title="Markayı sil">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>` : '<span class="hidden lg:block w-7 shrink-0"></span>'}
         </div>`;
@@ -510,23 +634,33 @@
       if (editingNoteId === note.id) return renderNoteCardEdit(note);
 
       const archived = note.archived;
+      const starred = !!note.starred;
       const badges = (note.brandIds || []).map(renderBrandBadge).join('');
       const checkCls = archived
         ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40'
         : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30';
-      const actionCls = 'opacity-0 group-hover:opacity-100';
+      const actionCls = 'lg:opacity-0 group-hover:lg:opacity-100';
+      const starCls = starred
+        ? 'text-amber-500 bg-amber-50 dark:bg-amber-950/40 opacity-100'
+        : `text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/30 ${actionCls}`;
+      const copyCls = `text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-950/40 ${actionCls}`;
 
       return `<article class="note-enter group relative bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-4 shadow-sm hover:shadow-md transition-all ${archived ? 'note-archived' : ''}">
         <div class="flex items-start justify-between gap-2 mb-2">
           <div class="flex flex-wrap gap-1.5 flex-1 min-w-0">${badges}</div>
           <div class="flex items-center gap-0.5 shrink-0">
+            <button type="button" data-star="${note.id}" class="p-1.5 rounded-lg transition ${starCls}" title="${starred ? 'Yıldızı kaldır' : 'Yıldızla'}">
+              <svg class="w-4 h-4" fill="${starred ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l2.02 6.216a1 1 0 00.95.69h6.535c.969 0 1.371 1.24.588 1.81l-5.287 3.84a1 1 0 00-.364 1.118l2.019 6.216c.3.921-.755 1.688-1.539 1.118l-5.287-3.841a1 1 0 00-1.176 0l-5.287 3.841c-.783.57-1.838-.197-1.539-1.118l2.019-6.216a1 1 0 00-.364-1.118L.456 11.643c-.783-.57-.38-1.81.588-1.81h6.535a1 1 0 00.95-.69l2.02-6.216z"/>
+              </svg>
+            </button>
             <button type="button" data-archive="${note.id}" class="p-1.5 rounded-lg transition ${checkCls} ${archived ? 'opacity-100' : actionCls}" title="${archived ? 'Arşivden çıkar' : 'Yapıldı / Arşivle'}">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
             </button>
             <button type="button" data-edit="${note.id}" class="${actionCls} p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition" title="Düzenle">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
             </button>
-            <button type="button" data-copy="${note.id}" class="${actionCls} p-1.5 rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-950/40 transition" title="Kopyala">
+            <button type="button" data-copy="${note.id}" class="p-1.5 rounded-lg transition ${copyCls}" title="Hızlı kopyala">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
             </button>
             <button type="button" data-delete="${note.id}" class="${actionCls} p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition" title="Sil">
@@ -598,6 +732,8 @@
       sectionTitle.textContent = meta.name;
       sectionSubtitle.textContent = searchQuery.trim()
         ? `${filtered.length} sonuç`
+        : activeFilter === STARRED_FILTER.id
+          ? `${filtered.length} yıldızlı not`
         : activeFilter !== ARCHIVE_FILTER.id && archivedInView > 0
           ? `${filtered.length} not · ${archivedInView} tamamlandı`
           : `${filtered.length} not`;
@@ -610,6 +746,9 @@
         if (searchQuery.trim()) {
           emptyTitle.textContent = 'Sonuç bulunamadı';
           emptyDesc.textContent = `"${searchQuery}" ile eşleşen not yok`;
+        } else if (activeFilter === STARRED_FILTER.id) {
+          emptyTitle.textContent = 'Henüz yıldızlı not yok';
+          emptyDesc.textContent = 'Sık dönmek istediğin fikirleri yıldızla';
         } else if (activeFilter === ARCHIVE_FILTER.id) {
           emptyTitle.textContent = 'Arşiv boş';
           emptyDesc.textContent = 'Tamamlanan notlar burada görünür';
@@ -658,6 +797,24 @@
             showToast(targetState ? 'Not arşivlendi' : 'Not geri alındı');
           } catch (e) {
             showToast('Hata oluştu');
+          }
+        }
+        return;
+      }
+
+      const starBtn = e.target.closest('[data-star]');
+      if (starBtn) {
+        const note = notes.find(n => n.id === starBtn.dataset.star);
+        if (note) {
+          const targetState = !note.starred;
+          try {
+            await updateDoc(doc(db, "notes", note.id), {
+              starred: targetState,
+              starredAt: targetState ? new Date().toISOString() : null
+            });
+            showToast(targetState ? 'Not yildizlandi' : 'Yildiz kaldirildi');
+          } catch (e) {
+            showToast('Yildiz guncellenemedi');
           }
         }
         return;
@@ -722,6 +879,7 @@
           text,
           brandIds: detectBrandIds(text),
           archived: false,
+          starred: false,
           createdAt: new Date().toISOString()
         });
         noteInput.value = '';
@@ -733,19 +891,27 @@
 
     async function addBrand() {
       const name = brandNameInput.value.trim();
+      const aliases = parseAliases(brandAliasesInput.value);
+      const normalizedAliases = aliases.map(normalize);
       const color = brandColorInput.value;
       if (!name) { brandFormError.textContent = 'Marka adı gerekli'; brandFormError.classList.remove('hidden'); return; }
-      if (brands.some(b => normalize(b.name) === normalize(name))) {
+      if (brands.some(b => b.id !== editingBrandId && normalize(b.name) === normalize(name))) {
         brandFormError.textContent = 'Bu isimde bir marka zaten var'; brandFormError.classList.remove('hidden'); return;
       }
-      let id = slugify(name);
-      if (brands.some(b => b.id === id)) id += '-' + Date.now();
+
+      if (brands.some(b => b.id !== editingBrandId && getBrandTerms(b).some(term => normalizedAliases.includes(term)))) {
+        brandFormError.textContent = 'Bu kisaltmalardan biri baska bir markada var'; brandFormError.classList.remove('hidden'); return;
+      }
+
+      const isEditingBrand = !!editingBrandId;
+      let id = editingBrandId || slugify(name);
+      if (!editingBrandId && brands.some(b => b.id === id)) id += '-' + Date.now();
 
       try {
-        await setDoc(doc(db, "brands", id), { name, color });
+        await setDoc(doc(db, "brands", id), { name, color, aliases }, { merge: true });
         brandForm.classList.add('hidden');
-        brandNameInput.value = '';
-        showToast(`"${name}" eklendi`);
+        resetBrandForm();
+        showToast(isEditingBrand ? `"${name}" guncellendi` : `"${name}" eklendi`);
       } catch (error) {
         showToast('Marka kaydedilemedi');
       }
@@ -753,6 +919,13 @@
 
     // Event delegation
     brandNav.addEventListener('click', e => {
+      const edit = e.target.closest('[data-edit-brand]');
+      if (edit) {
+        e.stopPropagation();
+        const brand = brands.find(b => b.id === edit.dataset.editBrand);
+        if (brand) openBrandForm(brand);
+        return;
+      }
       const del = e.target.closest('[data-delete-brand]');
       if (del) { e.stopPropagation(); deleteBrand(del.dataset.deleteBrand); return; }
       const filter = e.target.closest('[data-filter]');
@@ -785,8 +958,18 @@
       searchInput.focus();
     });
 
-    toggleBrandForm.addEventListener('click', () => brandForm.classList.toggle('hidden'));
-    cancelBrandBtn.addEventListener('click', () => { brandForm.classList.add('hidden'); brandFormError.classList.add('hidden'); });
+    toggleBrandForm.addEventListener('click', () => {
+      if (!brandForm.classList.contains('hidden') && !editingBrandId) {
+        brandForm.classList.add('hidden');
+        resetBrandForm();
+        return;
+      }
+      openBrandForm();
+    });
+    cancelBrandBtn.addEventListener('click', () => {
+      brandForm.classList.add('hidden');
+      resetBrandForm();
+    });
     saveBrandBtn.addEventListener('click', addBrand);
     brandColorInput.addEventListener('input', () => { brandColorPreview.textContent = brandColorInput.value; });
     brandNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') addBrand(); });
