@@ -1,4 +1,4 @@
-const CACHE_NAME = 'loqnot-v2';
+const CACHE_NAME = 'loqnot-v3';
 const APP_SHELL = [
   '/',
   '/manifest.webmanifest',

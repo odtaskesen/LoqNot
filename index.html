@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>LoqNot — Sosyaloq Ajansı</title>
   <meta name="theme-color" content="#050505" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -10,6 +10,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icons/icon-180.png" />
+  <link rel="icon" type="image/png" href="./icons/icon-192.png" />
   <script>
     (function () {
       const theme = localStorage.getItem('loqnot-theme-v1');
@@ -36,13 +37,20 @@
     body {
       font-family: 'DM Sans', system-ui, sans-serif;
       background: #fafafa;
+      /* iOS standalone: black-translucent status bar icerigin ustune biner, centik payi gerekir */
+      padding-top: env(safe-area-inset-top);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+      padding-bottom: env(safe-area-inset-bottom);
     }
     .dark body { background: #050505; color: #f4f4f5; }
     .note-enter { animation: noteIn 0.35s ease-out forwards; }
     @keyframes noteIn {
       from { opacity: 0; transform: translateY(8px) scale(0.98); }
-      to { opacity: 1; transform: translateY(0) scale(1); }
+      /* transform: none — kalici transform karti stacking context yapip menuleri altta birakiyor */
+      to { opacity: 1; transform: none; }
     }
+    #toast { bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
     .sidebar-item { transition: all 0.2s ease; }
     .sidebar-item:hover { transform: translateX(4px); }
     .sidebar-item.active { box-shadow: 0 4px 14px -2px rgba(0,0,0,0.15); }
@@ -99,6 +107,7 @@
     .dark input:focus,
     .dark textarea:focus { background: #101012 !important; border-color: #7c3aed !important; }
     .dark .sidebar-item:hover { background: #161618 !important; }
+    .dark .note-menu { background: #18181b !important; border-color: #2a2a2e !important; }
     .note-archived { opacity: 0.72; }
     .note-archived .note-body {
       text-decoration: line-through;
@@ -372,6 +381,10 @@
     let searchQuery = '';
     let editingNoteId = null;
     let editingBrandId = null;
+    let editingDraft = null;
+    let knownNoteIds = null;
+    let freshNoteIds = new Set();
+    const pendingDeletes = new Map();
 
     const brandNav = document.getElementById('brand-nav');
     const notesContainer = document.getElementById('notes-container');
@@ -476,17 +489,67 @@
       return document.documentElement.classList.contains('dark');
     }
 
+    function hexToRgbArr(hex) {
+      const h = hex.replace('#', '');
+      return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+    }
+
+    function relLuminance(rgb) {
+      return (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
+    }
+
+    // Kullanicinin sectigi marka rengi temanin zeminiyle kaynasiyorsa okunur bir tona cekilir
+    // (orn. beyaz marka rengi acik temada gorunmez olurdu)
+    function displayColor(hex) {
+      let rgb;
+      try { rgb = hexToRgbArr(hex); } catch { return hex; }
+      if (rgb.some(Number.isNaN)) return hex;
+      const lum = relLuminance(rgb);
+      if (!isDark() && lum > 0.7) {
+        const mix = 0.25 + ((lum - 0.7) / 0.3) * 0.35;
+        rgb = rgb.map(c => Math.round(c * (1 - mix)));
+      } else if (isDark() && lum < 0.12) {
+        const mix = 0.25 + ((0.12 - lum) / 0.12) * 0.35;
+        rgb = rgb.map(c => Math.round(c + (255 - c) * mix));
+      }
+      return '#' + rgb.map(c => Math.max(0, Math.min(255, c)).toString(16).padStart(2, '0')).join('');
+    }
+
+    function contrastText(hex) {
+      try { return relLuminance(hexToRgbArr(hex)) > 0.55 ? '#1e293b' : '#ffffff'; } catch { return '#ffffff'; }
+    }
+
     var showToast_t;
-    function showToast(message) {
+    function hideToast() {
+      toast.classList.replace('opacity-100', 'opacity-0');
+      toast.classList.add('pointer-events-none');
+    }
+    function showToast(message, action) {
       toast.textContent = message;
+      if (action) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = action.label;
+        btn.className = 'ml-3 font-bold underline underline-offset-2';
+        btn.addEventListener('click', () => { hideToast(); action.onAction(); });
+        toast.appendChild(btn);
+        toast.classList.remove('pointer-events-none');
+      } else {
+        toast.classList.add('pointer-events-none');
+      }
       toast.classList.replace('opacity-0', 'opacity-100');
       clearTimeout(showToast_t);
-      showToast_t = setTimeout(() => toast.classList.replace('opacity-100', 'opacity-0'), 1800);
+      showToast_t = setTimeout(hideToast, action ? 5000 : 1800);
+    }
+
+    function updateThemeColorMeta() {
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', isDark() ? '#050505' : '#fafafa');
     }
 
     function setTheme(dark) {
       document.documentElement.classList.toggle('dark', dark);
       localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
+      updateThemeColorMeta();
     }
 
     function isStandaloneApp() {
@@ -514,6 +577,11 @@
       installAppBtn.classList.toggle('hidden', isStandaloneApp());
     }
 
+    function handleSyncError() {
+      sectionSubtitle.textContent = 'Bağlantı hatası — sayfayı yenileyin';
+      showToast('Veritabanına bağlanılamadı');
+    }
+
     // Realtime Sync from Firebase Cloud Firestore
     function initFirebaseSync() {
       // Listen for Brands updates
@@ -532,8 +600,10 @@
           brands = loadedBrands;
           renderSidebar();
           renderNotes();
+          // Paylasimla gelen metin markalardan once yuklenmis olabilir
+          if (noteInput.value.trim()) updateComposePreview();
         }
-      });
+      }, handleSyncError);
 
       // Listen for Notes updates
       onSnapshot(collection(db, "notes"), (snapshot) => {
@@ -541,10 +611,16 @@
         snapshot.forEach((doc) => {
           loadedNotes.push({ id: doc.id, ...doc.data() });
         });
+        // Giris animasyonu yalnizca bu senkronla ilk kez gorulen notlara oynar
+        const incoming = new Set(loadedNotes.map(n => n.id));
+        freshNoteIds = knownNoteIds === null
+          ? incoming
+          : new Set([...incoming].filter(id => !knownNoteIds.has(id)));
+        knownNoteIds = incoming;
         notes = loadedNotes;
         renderSidebar();
         renderNotes();
-      });
+      }, handleSyncError);
     }
 
     function getBrandMeta(id) {
@@ -570,11 +646,17 @@
       return note.urgent !== undefined ? !!note.urgent : !!note.starred;
     }
 
+    // Silinmesi bekleyen (geri alinabilir) notlar listelerde ve sayaclarda gorunmez
+    function visibleNotes() {
+      return pendingDeletes.size ? notes.filter(n => !pendingDeletes.has(n.id)) : notes;
+    }
+
     function countByBrand(brandId) {
-      if (brandId === ARCHIVE_FILTER.id) return notes.filter(n => n.archived).length;
-      if (brandId === URGENT_FILTER.id) return notes.filter(n => isUrgent(n) && !n.archived).length;
-      if (brandId === ALL_FILTER.id) return notes.filter(n => !n.archived).length;
-      return notes.filter(n => n.brandIds && n.brandIds.includes(brandId) && !n.archived).length;
+      const pool = visibleNotes();
+      if (brandId === ARCHIVE_FILTER.id) return pool.filter(n => n.archived).length;
+      if (brandId === URGENT_FILTER.id) return pool.filter(n => isUrgent(n) && !n.archived).length;
+      if (brandId === ALL_FILTER.id) return pool.filter(n => !n.archived).length;
+      return pool.filter(n => n.brandIds && n.brandIds.includes(brandId) && !n.archived).length;
     }
 
     function sortNotes(list) {
@@ -635,22 +717,24 @@
 
     function renderBrandBadge(brandId) {
       const brand = getBrandMeta(brandId);
-      return `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold text-slate-600 dark:text-slate-300" style="background:${hexToRgba(brand.color, 0.12)}">
-        <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${brand.color}"></span>${escapeHtml(brand.name)}
+      const color = displayColor(brand.color);
+      return `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold text-slate-600 dark:text-slate-300" style="background:${hexToRgba(color, 0.12)}">
+        <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${color}"></span>${escapeHtml(brand.name)}
       </span>`;
     }
 
     function getFilteredNotes() {
+      const pool = visibleNotes();
       let list;
 
       if (activeFilter === ARCHIVE_FILTER.id) {
-        list = notes.filter(n => n.archived);
+        list = pool.filter(n => n.archived);
       } else if (activeFilter === URGENT_FILTER.id) {
-        list = notes.filter(n => isUrgent(n) && !n.archived);
+        list = pool.filter(n => isUrgent(n) && !n.archived);
       } else if (activeFilter === ALL_FILTER.id) {
-        list = notes.filter(n => !n.archived);
+        list = pool.filter(n => !n.archived);
       } else {
-        list = notes.filter(n => n.brandIds && n.brandIds.includes(activeFilter) && !n.archived);
+        list = pool.filter(n => n.brandIds && n.brandIds.includes(activeFilter) && !n.archived);
       }
 
       const q = normalize(searchQuery);
@@ -695,13 +779,14 @@
 
       const rows = items.map(item => {
         const active = activeFilter === item.id;
-        const style = active ? `background:${hexToRgba(item.color, 0.14)};box-shadow:0 0 0 2px ${hexToRgba(item.color, 0.35)}` : '';
+        const color = displayColor(item.color);
+        const style = active ? `background:${hexToRgba(color, 0.14)};box-shadow:0 0 0 2px ${hexToRgba(color, 0.35)}` : '';
         const textCls = active ? 'text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400';
-        const badgeStyle = active ? `background:${item.color};color:white` : '';
+        const badgeStyle = active ? `background:${color};color:${contrastText(color)}` : '';
 
         return `<div class="flex shrink-0 lg:shrink items-center gap-1 group/row">
           <button type="button" data-filter="${item.id}" class="sidebar-item min-w-40 lg:min-w-0 lg:flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-left ${active ? 'active' : hoverCls}" style="${style}">
-            <span class="w-3 h-3 rounded-full shrink-0" style="background:${item.color}"></span>
+            <span class="w-3 h-3 rounded-full shrink-0" style="background:${color}"></span>
             <span class="flex-1 text-sm font-medium truncate ${textCls}">${escapeHtml(item.name)}</span>
             <span class="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${active ? '' : 'badge-inactive'}" style="${badgeStyle}">${item.count}</span>
           </button>
@@ -725,7 +810,7 @@
 
     function renderNoteCardEdit(note) {
       const badges = (note.brandIds || []).map(renderBrandBadge).join('');
-      return `<article class="note-enter relative bg-white dark:bg-slate-800 rounded-2xl border-2 border-violet-300 dark:border-violet-600 p-4 shadow-md ring-2 ring-violet-100 dark:ring-violet-900/40">
+      return `<article class="relative bg-white dark:bg-slate-800 rounded-2xl border-2 border-violet-300 dark:border-violet-600 p-4 shadow-md ring-2 ring-violet-100 dark:ring-violet-900/40">
         <div class="flex flex-wrap gap-1.5 mb-3">${badges}</div>
         <textarea
           data-edit-input="${note.id}"
@@ -754,34 +839,45 @@
       const checkCls = archived
         ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40'
         : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30';
-      const actionCls = 'lg:opacity-0 group-hover:lg:opacity-100';
+      const actionCls = 'lg:opacity-0 group-hover:lg:opacity-100 group-focus-within:lg:opacity-100';
       const urgentCls = urgent
         ? 'text-red-500 bg-red-50 dark:bg-red-950/40 opacity-100'
         : `text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 ${actionCls}`;
-      const copyCls = `text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-950/40 ${actionCls}`;
+      const menuItemCls = 'w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium transition';
 
-      const spine = getBrandMeta((note.brandIds || [])[0] || UNCATEGORIZED.id).color;
-      return `<article class="note-card note-enter group relative bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-4 shadow-sm hover:shadow-md transition-all ${archived ? 'note-archived' : ''}" style="--spine:${spine}">
+      const spine = displayColor(getBrandMeta((note.brandIds || [])[0] || UNCATEGORIZED.id).color);
+      const enterCls = freshNoteIds.has(note.id) ? 'note-enter ' : '';
+      return `<article class="note-card ${enterCls}group relative bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-4 shadow-sm hover:shadow-md transition-all ${archived ? 'note-archived' : ''}" style="--spine:${spine}">
         <div class="flex items-start justify-between gap-2 mb-2">
           <div class="flex flex-wrap gap-1.5 flex-1 min-w-0">${badges}</div>
           <div class="flex items-center gap-0.5 shrink-0">
-            <button type="button" data-urgent="${note.id}" class="p-1.5 rounded-lg transition ${urgentCls}" title="${urgent ? 'Acil işaretini kaldır' : 'Acil olarak işaretle'}">
+            <button type="button" data-urgent="${note.id}" class="p-2.5 lg:p-1.5 rounded-lg transition ${urgentCls}" title="${urgent ? 'Acil işaretini kaldır' : 'Acil olarak işaretle'}">
               <svg class="w-4 h-4" fill="${urgent ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 2H21l-3 6 3 6h-8.5l-1-2H5a2 2 0 00-2 2z"/>
               </svg>
             </button>
-            <button type="button" data-archive="${note.id}" class="p-1.5 rounded-lg transition ${checkCls} ${archived ? 'opacity-100' : actionCls}" title="${archived ? 'Arşivden çıkar' : 'Yapıldı / Arşivle'}">
+            <button type="button" data-archive="${note.id}" class="p-2.5 lg:p-1.5 rounded-lg transition ${checkCls} ${archived ? 'opacity-100' : actionCls}" title="${archived ? 'Arşivden çıkar' : 'Yapıldı / Arşivle'}">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
             </button>
-            <button type="button" data-edit="${note.id}" class="${actionCls} p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition" title="Düzenle">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-            </button>
-            <button type="button" data-copy="${note.id}" class="p-1.5 rounded-lg transition ${copyCls}" title="Hızlı kopyala">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-            </button>
-            <button type="button" data-delete="${note.id}" class="${actionCls} p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition" title="Sil">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
+            <div class="relative">
+              <button type="button" data-menu="${note.id}" class="${actionCls} p-2.5 lg:p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:text-slate-200 dark:hover:bg-slate-700/60 transition" title="Diğer işlemler" aria-label="Diğer işlemler" aria-haspopup="true">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+              </button>
+              <div data-menu-panel="${note.id}" class="note-menu hidden absolute right-0 top-full mt-1 z-30 w-44 rounded-xl border border-slate-200 bg-white shadow-lg py-1 dark:border-slate-700">
+                <button type="button" data-edit="${note.id}" class="${menuItemCls} text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700/50">
+                  <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                  Düzenle
+                </button>
+                <button type="button" data-copy="${note.id}" class="${menuItemCls} text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700/50">
+                  <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                  Kopyala
+                </button>
+                <button type="button" data-delete="${note.id}" class="${menuItemCls} text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40">
+                  <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  Sil
+                </button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="note-body text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap break-words">${linkify(note.text || '')}</div>
@@ -789,11 +885,33 @@
       </article>`;
     }
 
+    // Yeniden render oncesi acik duzenleme taslagini sakla — yoksa her senkron
+    // guncellemesi kullanicinin o an yazdigi metni eski haline dondururdu
+    function captureEditDraft() {
+      if (!editingNoteId) { editingDraft = null; return; }
+      const ta = notesContainer.querySelector(`[data-edit-input="${editingNoteId}"]`);
+      if (ta) {
+        editingDraft = {
+          value: ta.value,
+          selStart: ta.selectionStart,
+          selEnd: ta.selectionEnd,
+          hadFocus: document.activeElement === ta
+        };
+      }
+    }
+
     function focusEditInput(noteId) {
       const ta = notesContainer.querySelector(`[data-edit-input="${noteId}"]`);
       if (!ta) return;
       const note = notes.find(n => n.id === noteId);
-      if (note) {
+      if (!note) return;
+      if (editingDraft) {
+        ta.value = editingDraft.value;
+        if (editingDraft.hadFocus) {
+          ta.focus();
+          ta.setSelectionRange(editingDraft.selStart, editingDraft.selEnd);
+        }
+      } else {
         ta.value = note.text;
         ta.focus();
         ta.setSelectionRange(ta.value.length, ta.value.length);
@@ -816,6 +934,7 @@
       const prevIds = brandIdsKey(note.brandIds || []);
       const newBrandIds = detectBrandIds(text);
       editingNoteId = null;
+      editingDraft = null;
 
       try {
         await updateDoc(doc(db, "notes", noteId), {
@@ -837,10 +956,12 @@
 
     function cancelNoteEdit() {
       editingNoteId = null;
+      editingDraft = null;
       renderNotes();
     }
 
     function renderNotes() {
+      captureEditDraft();
       const filtered = getFilteredNotes();
       const meta = getBrandMeta(activeFilter);
       const archivedInView = filtered.filter(n => n.archived).length;
@@ -872,12 +993,14 @@
           emptyTitle.textContent = 'Henüz not yok';
           emptyDesc.textContent = 'Sağdan ilk ilhamını ekle';
         }
+        freshNoteIds.clear();
         return;
       }
 
       emptyState.classList.replace('flex', 'hidden');
       notesContainer.innerHTML = filtered.map(renderNoteCard).join('');
       if (editingNoteId) focusEditInput(editingNoteId);
+      freshNoteIds.clear();
     }
 
     function renderViewToggle() {
@@ -896,10 +1019,25 @@
       renderViewToggle();
     }
 
+    function closeNoteMenus() {
+      notesContainer.querySelectorAll('[data-menu-panel]:not(.hidden)').forEach(p => p.classList.add('hidden'));
+    }
+
     async function handleNotesClick(e) {
+      const menuBtn = e.target.closest('[data-menu]');
+      if (menuBtn) {
+        const panel = notesContainer.querySelector(`[data-menu-panel="${menuBtn.dataset.menu}"]`);
+        const wasOpen = panel && !panel.classList.contains('hidden');
+        closeNoteMenus();
+        if (panel && !wasOpen) panel.classList.remove('hidden');
+        return;
+      }
+      closeNoteMenus();
+
       const editBtn = e.target.closest('[data-edit]');
       if (editBtn) {
         editingNoteId = editBtn.dataset.edit;
+        editingDraft = null;
         renderNotes();
         return;
       }
@@ -926,7 +1064,16 @@
               archived: targetState,
               archivedAt: targetState ? new Date().toISOString() : null
             });
-            showToast(targetState ? 'Not arşivlendi' : 'Not geri alındı');
+            showToast(
+              targetState ? 'Not arşivlendi' : 'Not arşivden çıkarıldı',
+              targetState ? { label: 'Geri Al', onAction: async () => {
+                try {
+                  await updateDoc(doc(db, "notes", note.id), { archived: false, archivedAt: null });
+                } catch (err) {
+                  showToast('Hata oluştu');
+                }
+              } } : undefined
+            );
           } catch (e) {
             showToast('Hata oluştu');
           }
@@ -955,13 +1102,7 @@
 
       const deleteBtn = e.target.closest('[data-delete]');
       if (deleteBtn) {
-        if (deleteBtn.dataset.delete === editingNoteId) editingNoteId = null;
-        try {
-          await deleteDoc(doc(db, "notes", deleteBtn.dataset.delete));
-          showToast('Not silindi');
-        } catch (e) {
-          showToast('Silme işlemi başarısız');
-        }
+        scheduleNoteDelete(deleteBtn.dataset.delete);
         return;
       }
 
@@ -972,6 +1113,38 @@
           .then(() => showToast('Not kopyalandı'))
           .catch(() => showToast('Kopyalama başarısız'));
       }
+    }
+
+    // Silme geri alinabilir: not once listeden gizlenir, 5 sn icinde
+    // geri alinmazsa buluttan kalici olarak silinir
+    function scheduleNoteDelete(noteId) {
+      if (noteId === editingNoteId) { editingNoteId = null; editingDraft = null; }
+      pendingDeletes.set(noteId, setTimeout(() => commitNoteDelete(noteId), 5000));
+      renderSidebar();
+      renderNotes();
+      showToast('Not silindi', { label: 'Geri Al', onAction: () => undoNoteDelete(noteId) });
+    }
+
+    async function commitNoteDelete(noteId) {
+      if (!pendingDeletes.has(noteId)) return;
+      pendingDeletes.delete(noteId);
+      try {
+        await deleteDoc(doc(db, "notes", noteId));
+      } catch (e) {
+        showToast('Silme işlemi başarısız');
+        renderSidebar();
+        renderNotes();
+      }
+    }
+
+    function undoNoteDelete(noteId) {
+      const timer = pendingDeletes.get(noteId);
+      if (timer === undefined) return;
+      clearTimeout(timer);
+      pendingDeletes.delete(noteId);
+      renderSidebar();
+      renderNotes();
+      showToast('Not geri alındı');
     }
 
     async function deleteBrand(brandId) {
@@ -1086,6 +1259,7 @@
     themeToggle.addEventListener('click', () => {
       setTheme(!isDark());
       renderSidebar();
+      renderNotes();
     });
 
     searchInput.addEventListener('input', () => {
@@ -1176,6 +1350,27 @@
       }
     });
 
+    // PWA paylasim hedefi: baska uygulamadan "Paylas -> LoqNot" ile gelen
+    // baslik/metin/link compose kutusuna dusurulur, kayit kullanicida kalir
+    function handleSharedContent() {
+      const params = new URLSearchParams(window.location.search);
+      const pieces = [params.get('title'), params.get('text'), params.get('url')]
+        .map(v => (v || '').trim())
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length);
+      const parts = [];
+      for (const piece of pieces) {
+        if (!parts.some(p => p.includes(piece))) parts.push(piece);
+      }
+      if (!parts.length) return;
+      const shared = parts.join(' ');
+      const current = noteInput.value.trim();
+      noteInput.value = current ? current + ' ' + shared : shared;
+      updateComposePreview();
+      noteInput.focus();
+      history.replaceState(null, '', window.location.pathname);
+    }
+
     window.addEventListener('beforeinstallprompt', e => {
       e.preventDefault();
       deferredInstallPrompt = e;
@@ -1210,9 +1405,22 @@
       if (e.target === installHintModal) hideInstallHint();
     });
     window.addEventListener('keydown', e => {
-      if (e.key === 'Escape') hideInstallHint();
+      if (e.key === 'Escape') { hideInstallHint(); closeNoteMenus(); }
+    });
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#notes-container')) closeNoteMenus();
+    });
+    // Bekleme suresi dolmadan sayfa kapanirsa silmeler son bir deneme ile isletilir
+    window.addEventListener('pagehide', () => {
+      pendingDeletes.forEach((timer, noteId) => {
+        clearTimeout(timer);
+        deleteDoc(doc(db, "notes", noteId)).catch(() => {});
+      });
+      pendingDeletes.clear();
     });
     updateInstallButton();
+    updateThemeColorMeta();
+    handleSharedContent();
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
