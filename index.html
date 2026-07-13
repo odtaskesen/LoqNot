@@ -210,6 +210,25 @@
           </svg>
           Ana ekrana ekle
         </button>
+        <div id="user-bar" class="hidden mt-3 items-center gap-2">
+          <img id="user-avatar" class="hidden w-7 h-7 rounded-full border border-slate-200 dark:border-slate-700" alt="" referrerpolicy="no-referrer" />
+          <span id="user-email" class="text-xs font-medium text-slate-500 dark:text-slate-400 truncate max-w-[190px]"></span>
+          <button
+            id="admin-btn"
+            type="button"
+            class="hidden items-center gap-1.5 px-2.5 py-1 rounded-lg border border-violet-200 bg-violet-50/70 text-[11px] font-semibold text-violet-700 hover:bg-violet-100 transition dark:border-violet-500/40 dark:bg-violet-950/30 dark:text-violet-300 dark:hover:bg-violet-950/60"
+          >
+            Onay Paneli
+            <span id="admin-badge" class="hidden min-w-[18px] px-1 py-0.5 rounded-full bg-violet-600 text-white text-[10px] leading-none text-center">0</span>
+          </button>
+          <button
+            id="sign-out-btn"
+            type="button"
+            class="px-2.5 py-1 rounded-lg border border-slate-200 text-[11px] font-semibold text-slate-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition dark:border-slate-600 dark:text-slate-400 dark:hover:text-red-400 dark:hover:border-red-500/40 dark:hover:bg-red-950/30"
+          >
+            Çıkış
+          </button>
+        </div>
       </header>
 
       <div class="flex-1 flex flex-col lg:flex-row gap-5 lg:gap-6 p-5 sm:p-6 lg:p-8">
@@ -334,11 +353,90 @@
     </div>
   </div>
 
+  <!-- Giris kapisi: oturum yoksa veya hesap onaysizsa uygulamanin tamamini kapatir -->
+  <div id="auth-gate" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-50 px-5 dark:bg-slate-950">
+    <div class="w-full max-w-sm text-center">
+      <h1 class="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+        LoqNot<span class="text-violet-500">.</span>
+      </h1>
+      <p class="mt-1 text-sm text-slate-400 font-medium">Sosyaloq · İlham ve Not Panosu</p>
+
+      <div id="auth-loading" class="mt-10 text-sm text-slate-400">Oturum kontrol ediliyor…</div>
+
+      <div id="auth-login" class="hidden mt-10 space-y-3">
+        <button
+          id="google-signin-btn"
+          type="button"
+          class="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm hover:border-violet-300 hover:bg-violet-50/50 active:scale-[0.98] transition dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:border-violet-500 dark:hover:bg-violet-950/30"
+        >
+          <svg class="w-5 h-5" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0012 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 010-4.2V7.06H2.18a11 11 0 000 9.88l3.66-2.84z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15A11 11 0 0012 1 11 11 0 002.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38z"/>
+          </svg>
+          Google ile Giriş Yap
+        </button>
+        <p class="text-xs text-slate-400 leading-relaxed">Giriş yaptıktan sonra hesabının yönetici tarafından onaylanması gerekir.</p>
+        <p id="auth-error" class="hidden text-xs text-red-500"></p>
+      </div>
+
+      <div id="auth-pending" class="hidden mt-10 space-y-4">
+        <div class="mx-auto w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center dark:bg-amber-950/50">
+          <svg class="w-7 h-7 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+        <div>
+          <p class="font-semibold text-slate-700 dark:text-slate-200">Hesabın onay bekliyor</p>
+          <p id="pending-email" class="mt-1 text-sm text-slate-400"></p>
+        </div>
+        <p class="text-xs text-slate-400 leading-relaxed">Yönetici hesabını onayladığında bu ekran otomatik olarak açılacak.</p>
+        <button
+          id="pending-signout-btn"
+          type="button"
+          class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-white transition dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
+        >
+          Çıkış yap
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Yonetici onay paneli -->
+  <div id="admin-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 px-5 py-6">
+    <div class="mx-auto mt-10 max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+      <div class="flex items-start justify-between gap-4">
+        <h3 class="text-lg font-bold text-slate-900 dark:text-slate-100">Kullanıcı Onayları</h3>
+        <button
+          id="admin-close"
+          type="button"
+          class="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          title="Kapat"
+          aria-label="Kapat"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="mt-4">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Onay Bekleyenler</p>
+        <div id="pending-list" class="space-y-2"></div>
+      </div>
+      <div class="mt-5">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Onaylı Kullanıcılar</p>
+        <div id="allowed-list" class="space-y-2"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl bg-slate-800 text-white text-sm font-medium shadow-lg opacity-0 pointer-events-none transition-opacity duration-300 z-50 dark:bg-slate-100 dark:text-slate-900"></div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
     import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
 
     // Firebase configuration
     const firebaseConfig = {
@@ -353,6 +451,10 @@
     // Initialize Firebase
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    // Onay panelini yalnizca bu hesap gorur; kural dosyasindaki adresle ayni olmali
+    const ADMIN_EMAIL = 'odtaskesen@gmail.com';
 
     const DEFAULT_BRANDS = [
       { id: 'stocado',      name: 'Stocado',       color: '#10b981', aliases: [] },
@@ -583,9 +685,13 @@
     }
 
     // Realtime Sync from Firebase Cloud Firestore
+    // Dinleyiciler giriste baslar, cikista kapanir; unsub listesi bunun icin tutulur
+    let syncUnsubs = [];
+
     function initFirebaseSync() {
+      if (syncUnsubs.length) return;
       // Listen for Brands updates
-      onSnapshot(collection(db, "brands"), (snapshot) => {
+      syncUnsubs.push(onSnapshot(collection(db, "brands"), (snapshot) => {
         let loadedBrands = [];
         snapshot.forEach((doc) => {
           loadedBrands.push({ id: doc.id, aliases: [], ...doc.data() });
@@ -603,10 +709,10 @@
           // Paylasimla gelen metin markalardan once yuklenmis olabilir
           if (noteInput.value.trim()) updateComposePreview();
         }
-      }, handleSyncError);
+      }, handleSyncError));
 
       // Listen for Notes updates
-      onSnapshot(collection(db, "notes"), (snapshot) => {
+      syncUnsubs.push(onSnapshot(collection(db, "notes"), (snapshot) => {
         let loadedNotes = [];
         snapshot.forEach((doc) => {
           loadedNotes.push({ id: doc.id, ...doc.data() });
@@ -620,7 +726,18 @@
         notes = loadedNotes;
         renderSidebar();
         renderNotes();
-      }, handleSyncError);
+      }, handleSyncError));
+    }
+
+    function stopFirebaseSync() {
+      syncUnsubs.forEach(unsub => unsub());
+      syncUnsubs = [];
+      brands = [];
+      notes = [];
+      knownNoteIds = null;
+      freshNoteIds = new Set();
+      renderSidebar();
+      renderNotes();
     }
 
     function getBrandMeta(id) {
@@ -1405,7 +1522,11 @@
       if (e.target === installHintModal) hideInstallHint();
     });
     window.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { hideInstallHint(); closeNoteMenus(); }
+      if (e.key === 'Escape') {
+        hideInstallHint();
+        closeNoteMenus();
+        document.getElementById('admin-modal').classList.add('hidden');
+      }
     });
     document.addEventListener('click', e => {
       if (!e.target.closest('#notes-container')) closeNoteMenus();
@@ -1428,8 +1549,256 @@
       });
     }
 
-    // Start cloud database connection
-    initFirebaseSync();
+    // ------------------------------------------------------------------
+    // Kimlik dogrulama ve onay akisi
+    // ------------------------------------------------------------------
+    const authGate = document.getElementById('auth-gate');
+    const authLoading = document.getElementById('auth-loading');
+    const authLogin = document.getElementById('auth-login');
+    const authPending = document.getElementById('auth-pending');
+    const authError = document.getElementById('auth-error');
+    const pendingEmailEl = document.getElementById('pending-email');
+    const googleSigninBtn = document.getElementById('google-signin-btn');
+    const pendingSignoutBtn = document.getElementById('pending-signout-btn');
+    const userBar = document.getElementById('user-bar');
+    const userAvatar = document.getElementById('user-avatar');
+    const userEmailEl = document.getElementById('user-email');
+    const signOutBtn = document.getElementById('sign-out-btn');
+    const adminBtn = document.getElementById('admin-btn');
+    const adminBadge = document.getElementById('admin-badge');
+    const adminModal = document.getElementById('admin-modal');
+    const adminClose = document.getElementById('admin-close');
+    const pendingList = document.getElementById('pending-list');
+    const allowedList = document.getElementById('allowed-list');
+
+    let approvalUnsub = null;
+    let adminUnsubs = [];
+    let pendingUsers = [];
+    let allowedUsers = [];
+    let pendingRequestSent = false;
+
+    function normalizeEmail(email) {
+      return (email || '').trim().toLowerCase();
+    }
+
+    function showAuthView(view) {
+      authGate.classList.toggle('hidden', view === 'app');
+      authLoading.classList.toggle('hidden', view !== 'loading');
+      authLogin.classList.toggle('hidden', view !== 'login');
+      authPending.classList.toggle('hidden', view !== 'pending');
+    }
+
+    function updateUserBar(user) {
+      if (!user) {
+        userBar.classList.add('hidden');
+        userBar.classList.remove('flex');
+        return;
+      }
+      userEmailEl.textContent = user.email || '';
+      if (user.photoURL) {
+        userAvatar.src = user.photoURL;
+        userAvatar.classList.remove('hidden');
+      } else {
+        userAvatar.classList.add('hidden');
+      }
+      userBar.classList.remove('hidden');
+      userBar.classList.add('flex');
+    }
+
+    function stopApprovalWatch() {
+      if (approvalUnsub) { approvalUnsub(); approvalUnsub = null; }
+    }
+
+    function stopAdminWatch() {
+      adminUnsubs.forEach(unsub => unsub());
+      adminUnsubs = [];
+      pendingUsers = [];
+      allowedUsers = [];
+    }
+
+    // Onaysiz kullanici girisinde kendini bekleme listesine yazar;
+    // yonetici panelde bu kaydi gorup onaylar
+    function registerPendingRequest(user, email) {
+      if (pendingRequestSent) return;
+      pendingRequestSent = true;
+      setDoc(doc(db, "pendingUsers", email), {
+        email,
+        name: user.displayName || '',
+        photo: user.photoURL || '',
+        requestedAt: new Date().toISOString()
+      }, { merge: true }).catch(() => {});
+    }
+
+    function renderAdminPanel() {
+      adminBadge.textContent = pendingUsers.length;
+      adminBadge.classList.toggle('hidden', pendingUsers.length === 0);
+
+      pendingList.innerHTML = pendingUsers.length ? pendingUsers.map(u => `
+        <div class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">${escapeHtml(u.name || u.email)}</p>
+            <p class="text-xs text-slate-400 truncate">${escapeHtml(u.email)}</p>
+          </div>
+          <button type="button" data-approve="${escapeHtml(u.id)}" class="shrink-0 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-500 transition">Onayla</button>
+          <button type="button" data-reject="${escapeHtml(u.id)}" class="shrink-0 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-500 hover:text-red-600 hover:border-red-200 transition dark:border-slate-600 dark:text-slate-400 dark:hover:text-red-400">Reddet</button>
+        </div>
+      `).join('') : '<p class="text-xs text-slate-400 py-1">Bekleyen istek yok.</p>';
+
+      allowedList.innerHTML = allowedUsers.length ? allowedUsers.map(u => `
+        <div class="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">${escapeHtml(u.name || u.email)}</p>
+            <p class="text-xs text-slate-400 truncate">${escapeHtml(u.email)}</p>
+          </div>
+          <button type="button" data-remove="${escapeHtml(u.id)}" class="shrink-0 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-500 hover:text-red-600 hover:border-red-200 transition dark:border-slate-600 dark:text-slate-400 dark:hover:text-red-400">Çıkar</button>
+        </div>
+      `).join('') : '<p class="text-xs text-slate-400 py-1">Henüz onaylı kullanıcı yok.</p>';
+    }
+
+    function startAdminWatch() {
+      if (adminUnsubs.length) return;
+      adminUnsubs.push(onSnapshot(collection(db, "pendingUsers"), (snapshot) => {
+        pendingUsers = [];
+        snapshot.forEach((d) => pendingUsers.push({ id: d.id, ...d.data() }));
+        renderAdminPanel();
+      }, () => {}));
+      adminUnsubs.push(onSnapshot(collection(db, "allowedUsers"), (snapshot) => {
+        allowedUsers = [];
+        snapshot.forEach((d) => allowedUsers.push({ id: d.id, ...d.data() }));
+        renderAdminPanel();
+      }, () => {}));
+    }
+
+    function grantAccess(user) {
+      const admin = normalizeEmail(user.email) === ADMIN_EMAIL;
+      adminBtn.classList.toggle('hidden', !admin);
+      adminBtn.classList.toggle('flex', admin);
+      if (admin) startAdminWatch();
+      showAuthView('app');
+      initFirebaseSync();
+    }
+
+    function showPendingScreen(user, email) {
+      stopFirebaseSync();
+      registerPendingRequest(user, email);
+      pendingEmailEl.textContent = email;
+      showAuthView('pending');
+    }
+
+    onAuthStateChanged(auth, (user) => {
+      stopApprovalWatch();
+      pendingRequestSent = false;
+      updateUserBar(user);
+
+      if (!user) {
+        stopFirebaseSync();
+        stopAdminWatch();
+        adminBtn.classList.add('hidden');
+        adminBtn.classList.remove('flex');
+        adminModal.classList.add('hidden');
+        showAuthView('login');
+        return;
+      }
+
+      const email = normalizeEmail(user.email);
+      if (email === ADMIN_EMAIL) {
+        grantAccess(user);
+        return;
+      }
+
+      showAuthView('loading');
+      // Onay dokumani canli izlenir: yonetici onayladigi an uygulama acilir,
+      // onayi kaldirdigi an erisim tekrar kapanir
+      approvalUnsub = onSnapshot(doc(db, "allowedUsers", email), (snap) => {
+        if (snap.exists()) {
+          grantAccess(user);
+        } else {
+          showPendingScreen(user, email);
+        }
+      }, () => {
+        showPendingScreen(user, email);
+      });
+    });
+
+    googleSigninBtn.addEventListener('click', async () => {
+      authError.classList.add('hidden');
+      const provider = new GoogleAuthProvider();
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (err) {
+        const code = err && err.code || '';
+        if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return;
+        if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
+          // Popup engellenirse (ozellikle telefona eklenmis PWA'da) ayni sayfada yonlendirme kullanilir
+          try { await signInWithRedirect(auth, provider); return; } catch {}
+        }
+        authError.textContent = 'Giriş yapılamadı — tekrar deneyin.' + (code ? ` (${code})` : '');
+        authError.classList.remove('hidden');
+      }
+    });
+
+    // Cikista geri alinabilir silmeler bekletilmeden isletilir; oturum
+    // kapandiktan sonra veritabanina yazma izni kalmaz
+    function flushPendingDeletes() {
+      pendingDeletes.forEach((timer, noteId) => {
+        clearTimeout(timer);
+        deleteDoc(doc(db, "notes", noteId)).catch(() => {});
+      });
+      pendingDeletes.clear();
+      hideToast();
+    }
+
+    async function handleSignOut() {
+      flushPendingDeletes();
+      try { await signOut(auth); } catch { showToast('Çıkış yapılamadı'); }
+    }
+
+    signOutBtn.addEventListener('click', handleSignOut);
+    pendingSignoutBtn.addEventListener('click', handleSignOut);
+
+    adminBtn.addEventListener('click', () => {
+      renderAdminPanel();
+      adminModal.classList.remove('hidden');
+    });
+    adminClose.addEventListener('click', () => adminModal.classList.add('hidden'));
+
+    adminModal.addEventListener('click', async (e) => {
+      if (e.target === adminModal) { adminModal.classList.add('hidden'); return; }
+
+      const approveBtn = e.target.closest('[data-approve]');
+      if (approveBtn) {
+        const email = approveBtn.dataset.approve;
+        const u = pendingUsers.find(p => p.id === email) || {};
+        try {
+          await setDoc(doc(db, "allowedUsers", email), {
+            email,
+            name: u.name || '',
+            photo: u.photo || '',
+            approvedAt: new Date().toISOString()
+          });
+          await deleteDoc(doc(db, "pendingUsers", email));
+          showToast(`Onaylandı: ${email}`);
+        } catch { showToast('Onaylanamadı — tekrar deneyin'); }
+        return;
+      }
+
+      const rejectBtn = e.target.closest('[data-reject]');
+      if (rejectBtn) {
+        try {
+          await deleteDoc(doc(db, "pendingUsers", rejectBtn.dataset.reject));
+          showToast('İstek reddedildi');
+        } catch { showToast('İşlem başarısız — tekrar deneyin'); }
+        return;
+      }
+
+      const removeBtn = e.target.closest('[data-remove]');
+      if (removeBtn) {
+        try {
+          await deleteDoc(doc(db, "allowedUsers", removeBtn.dataset.remove));
+          showToast('Kullanıcının erişimi kaldırıldı');
+        } catch { showToast('İşlem başarısız — tekrar deneyin'); }
+      }
+    });
   </script>
 </body>
 </html>
