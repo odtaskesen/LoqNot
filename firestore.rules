@@ -1,0 +1,57 @@
+rules_version = '2';
+
+// LoqNot erisim kurallari
+// - Giris: Google (Firebase Authentication)
+// - Notlara/markalara yalnizca yonetici ve onayli kullanicilar erisir
+// - Onay listesi (allowedUsers) yalnizca yonetici tarafindan degistirilir
+// - Yeni kullanici girisinde kendini pendingUsers'a yazar, yonetici onaylar
+//
+// Firebase Console > Firestore > Rules sayfasina bu dosyanin icerigini
+// yapistirip Publish'e basin.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email_verified == true;
+    }
+
+    function userEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    // index.html icindeki ADMIN_EMAIL ile ayni olmali
+    function isAdmin() {
+      return isSignedIn() && userEmail() == 'odtaskesen@gmail.com';
+    }
+
+    function isApproved() {
+      return isAdmin()
+        || (isSignedIn() && exists(/databases/$(database)/documents/allowedUsers/$(userEmail())));
+    }
+
+    match /notes/{noteId} {
+      allow read, write: if isApproved();
+    }
+
+    match /brands/{brandId} {
+      allow read, write: if isApproved();
+    }
+
+    match /allowedUsers/{email} {
+      // Herkes yalnizca kendi onay durumunu okuyabilir
+      allow get: if isSignedIn() && userEmail() == email;
+      allow read, write: if isAdmin();
+    }
+
+    match /pendingUsers/{email} {
+      allow get: if isSignedIn() && userEmail() == email;
+      // Kullanici yalnizca kendi bekleme kaydini olusturabilir
+      allow create, update: if isSignedIn() && userEmail() == email
+        && request.resource.data.email == email;
+      allow read, write: if isAdmin();
+    }
+  }
+}
