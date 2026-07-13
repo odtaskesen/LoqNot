@@ -17,8 +17,8 @@ Sosyal medya ekipleri gün içinde onlarca iyi içerik görür: *"Bu Reel format
 
 > **EN ·** LoqNot is a brand-aware content inspiration board for social media agencies: paste a link, mention a client, and the note auto-tags itself and syncs to the whole team in real time. A dependency-free, single-file PWA backed by Firebase — Firestore for realtime data, Google sign-in with admin approval for access control. Built as a self-taught side project by a social media professional; in daily use by the Sosyaloq team.
 
-<!-- Ekran görüntüsü eklemek için: uygulamanın görüntüsünü docs/screenshot.png olarak kaydedin ve alttaki satırın başındaki yorum işaretlerini kaldırın -->
-<!-- ![LoqNot ekran görüntüsü](docs/screenshot.png) -->
+![LoqNot pano görünümü — koyu tema, marka etiketli notlar ve platform rozetleri](docs/screenshot-board.png)
+*Örnek verilerle pano görünümü: notlar markalara otomatik etiketlenir, linkler platform rozetine dönüşür, acil işler üste sabitlenir.*
 
 ## ✨ Özellikler
 
@@ -53,6 +53,8 @@ Pano ekip içi kullanım için olduğundan erişim iki katmanla korunur:
 
 1. **Kimlik** — Firebase Authentication üzerinden Google ile giriş. Şifre saklanmaz, hesap yönetimi Google'a bırakılır.
 2. **Onay** — Giriş yapmak yetmez: kullanıcı `pendingUsers` listesine düşer ve yönetici uygulama içindeki panelden onaylayana kadar bekleme ekranında kalır. Onay durumu canlı izlendiği için onay verildiği an uygulama açılır, geri alındığı an kapanır.
+
+![Google ile giriş ekranı](docs/screenshot-login.png)
 
 Kritik nokta: bu kontrol sadece arayüzde değil, [`firestore.rules`](firestore.rules) ile **veritabanı seviyesinde** uygulanır. Notlara yalnızca yönetici ve `allowedUsers` koleksiyonundaki e-postalar erişebilir; onay listesini yalnızca yönetici değiştirebilir. Böylece istemcideki Firebase config'inin herkese açık olması bir güvenlik sorunu yaratmaz — config zaten gizli değildir, güvenliği kurallar sağlar.
 
