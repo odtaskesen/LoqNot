@@ -503,7 +503,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
-    import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+    import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, query, where, getDocsFromServer, writeBatch, setDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
     import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
 
     // Firebase configuration
@@ -554,6 +554,7 @@
       { id: 'bitti',     name: 'Bitti',     color: '#10b981' },
     ];
     const TASK_FILTERS = [
+      { id: 'all',       name: 'Tümü' },
       { id: 'bugun',     name: '🔥 Bugün' },
       { id: 'geciken',   name: '⚠️ Geciken' },
       { id: 'yapiliyor', name: 'Yapılıyor' },
@@ -577,6 +578,8 @@
     const TAB_KEY    = 'loqnot-tab-v1';
     const ACCENT_KEY = 'loqnot-accent-v1';
     const TASK_VIEW_KEY = 'loqnot-task-view-v1';
+    const TASK_PERSON_FILTER_KEY = 'loqnot-task-filter-v1';
+    const TASK_VIEW_FILTER_KEY = 'loqnot-task-view-filter-v2';
     const BOARD_DATE_FILTERS = [
       { id: 'all',     name: 'Tümü' },
       { id: 'bugun',   name: '🔥 Bugün' },
@@ -594,10 +597,14 @@
     let currentAccent = ACCENT_PRESETS[localStorage.getItem(ACCENT_KEY)] ? localStorage.getItem(ACCENT_KEY) : 'violet';
     let activeTab = ['pano', 'tasks', 'docs'].includes(localStorage.getItem(TAB_KEY)) ? localStorage.getItem(TAB_KEY) : 'pano';
     let activeFilter = 'all';
-    let taskStatusFilter = 'yapiliyor';
-    // Kanban (pano) modunda durum sutunlarca ayrildigi icin ayri bir tarih filtresi kullanilir
-    let boardDateFilter = 'all';
+    // Tablo, mobil kartlar ve Kanban ayni filtreyi kullanir. Eski iki anahtardan
+    // gelen degerler bir kez okunarak mevcut kullanici tercihi korunur.
     let taskViewMode = localStorage.getItem(TASK_VIEW_KEY) === 'board' ? 'board' : 'table';
+    const savedTaskViewFilter = localStorage.getItem(TASK_VIEW_FILTER_KEY)
+      || localStorage.getItem(taskViewMode === 'board' ? 'loqnot-board-date-v1' : 'loqnot-task-status-v1');
+    let taskViewFilter = TASK_FILTERS.some(f => f.id === savedTaskViewFilter) ? savedTaskViewFilter : 'yapiliyor';
+    if (taskViewMode === 'board' && !['all', 'bugun', 'geciken'].includes(taskViewFilter)) taskViewFilter = 'all';
+    localStorage.setItem(TASK_VIEW_FILTER_KEY, taskViewFilter);
     let viewMode = localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid';
     let showEmptyBrands = localStorage.getItem(EMPTY_BRANDS_KEY) === '1';
     let searchQuery = '';
@@ -606,6 +613,7 @@
     let editingDocId = null;
     let editingBrandId = null;
     let editingDraft = null;
+    let noteSavePromise = null;
     let knownNoteIds = null;
     let freshNoteIds = new Set();
     let notesLoaded = false;
@@ -615,14 +623,19 @@
     let tasksSyncStarted = false;
     let docsSyncStarted = false;
     // Gorevler sekmesinde soldaki filtre kisi bazlidir: 'all' | 'unassigned' | e-posta
-    let taskFilter = 'all';
+    let taskFilter = localStorage.getItem(TASK_PERSON_FILTER_KEY) || 'all';
     // Tek seferde tek hucre duzenlenir: {kind, id, draft, draftTitle, ...}
     // kind: task-title | task-desc | doc-title | doc-body | new-task | new-doc
     let cellEdit = null;
+    // Yeni gorev, kullanici basligi kaydedene kadar yalnizca yerel bir taslaktir.
+    // Boylece bos bir Firestore belgesi ve dinleyici/render yarisi olusmaz.
+    let newTaskDraft = null;
+    let cellSavePromise = null;
     // Acik kisi atama paneli ('p-<taskId>') — yeniden render sonrasi acik kalabilsin diye izlenir
     let openMenuKey = null;
     // Anahtarlar "koleksiyon/dokumanId" bicimindedir; silme uc koleksiyonda da geri alinabilir
     const pendingDeletes = new Map();
+    const deletingBrandIds = new Set();
 
     const brandNav = document.getElementById('brand-nav');
     const notesContainer = document.getElementById('notes-container');
@@ -993,8 +1006,11 @@
       tasksSyncStarted = false;
       docsSyncStarted = false;
       taskFilter = 'all';
-      taskStatusFilter = 'yapiliyor';
+      taskViewFilter = 'yapiliyor';
       cellEdit = null;
+      newTaskDraft = null;
+      cellSavePromise = null;
+      noteSavePromise = null;
       openMenuKey = null;
       renderSidebar();
       renderMain();
@@ -1105,12 +1121,24 @@
       return { label: host, color: '#64748b' };
     }
 
+    function safeExternalUrl(rawUrl) {
+      try {
+        const url = new URL(rawUrl);
+        return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+      } catch {
+        return null;
+      }
+    }
+
     function linkify(text) {
       return escapeHtml(text).replace(
         URL_RE,
         url => {
-          const meta = linkMeta(url);
-          return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="link-chip" style="--chip:${meta.color}" title="${url}">` +
+          const safeUrl = safeExternalUrl(url);
+          if (!safeUrl) return escapeHtml(url);
+          const meta = linkMeta(safeUrl);
+          const safeAttr = escapeHtml(safeUrl);
+          return `<a href="${safeAttr}" target="_blank" rel="noopener noreferrer" class="link-chip" style="--chip:${meta.color}" title="${safeAttr}">` +
             `<span class="link-chip-dot"></span>${escapeHtml(meta.label)}` +
             `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M7 17L17 7M7 7h10v10"/></svg></a>`;
         }
@@ -1210,7 +1238,7 @@
         { id: 'bugun',   name: '🔥 Bugün',   color: '#f43f5e', count: visibleTasks().filter(isDueToday).length },
         { id: 'geciken', name: '⚠️ Geciken', color: '#f59e0b', count: visibleTasks().filter(isOverdue).length },
       ].map(item => {
-        const active = taskStatusFilter === item.id;
+        const active = taskViewFilter === item.id;
         const color = displayColor(item.color);
         const style = active ? `background:${hexToRgba(color, 0.14)};box-shadow:0 0 0 2px ${hexToRgba(color, 0.35)}` : '';
         const textCls = active ? 'text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400';
@@ -1378,22 +1406,28 @@
     }
 
     async function saveNoteEdit(noteId) {
+      if (noteSavePromise) return noteSavePromise;
+      noteSavePromise = commitNoteEdit(noteId);
+      try { return await noteSavePromise; }
+      finally { noteSavePromise = null; }
+    }
+
+    async function commitNoteEdit(noteId) {
       const note = notes.find(n => n.id === noteId);
       const ta = notesContainer.querySelector(`[data-edit-input="${noteId}"]`);
-      if (!note || !ta) return;
+      if (!note || !ta) return false;
 
       const text = ta.value.trim();
       if (!text) {
         ta.classList.add('ring-2', 'ring-red-200', 'border-red-300');
         setTimeout(() => ta.classList.remove('ring-2', 'ring-red-200', 'border-red-300'), 1200);
         ta.focus();
-        return;
+        return false;
       }
 
+      captureEditDraft();
       const prevIds = brandIdsKey(note.brandIds || []);
       const newBrandIds = detectBrandIds(text);
-      editingNoteId = null;
-      editingDraft = null;
 
       try {
         await updateDoc(doc(db, "notes", noteId), {
@@ -1408,8 +1442,15 @@
         } else {
           showToast('Not güncellendi');
         }
+        editingNoteId = null;
+        editingDraft = null;
+        renderNotes();
+        return true;
       } catch (error) {
         showToast('Güncelleme başarısız oldu');
+        renderNotes();
+        focusEditInput(noteId);
+        return false;
       }
     }
 
@@ -1501,8 +1542,11 @@
         : 'Bilgi notlarında ara…';
     }
 
-    function setTab(tab) {
+    async function setTab(tab) {
       if (activeTab === tab) return;
+      // Kayit basarisizsa taslagi ve kullanicinin bulundugu sekmeyi koru.
+      if (cellEdit && !await saveCellEdit()) return;
+      if (editingNoteId && !await saveNoteEdit(editingNoteId)) return;
       activeTab = tab;
       localStorage.setItem(TAB_KEY, tab);
       // Acil ve Arsiv filtreleri yalnizca Pano'da var
@@ -1571,6 +1615,12 @@
 
     // Durum dropdown'i ve kanban surukle-birak ayni guncellemeyi paylasir
     async function setTaskStatus(taskId, statusId) {
+      if (newTaskDraft && newTaskDraft.id === taskId) {
+        newTaskDraft.status = statusId;
+        newTaskDraft.doneAt = statusId === 'bitti' ? new Date().toISOString() : null;
+        renderMain();
+        return;
+      }
       try {
         await updateDoc(doc(db, "tasks", taskId), {
           status: statusId,
@@ -1638,12 +1688,14 @@
     // Kisi filtresi + arama, tablo/kart ve pano gorunumlerinin ortak taban havuzu
     function baseTaskPool() {
       let list = visibleTasks();
+      if (newTaskDraft && !list.some(t => t.id === newTaskDraft.id)) list = [newTaskDraft, ...list];
       if (taskFilter === 'unassigned') list = list.filter(t => !(t.assigneeIds || []).length);
       else if (taskFilter !== 'all') list = list.filter(t => (t.assigneeIds || []).includes(taskFilter));
 
       const q = normalize(searchQuery);
       if (q) {
         list = list.filter(t =>
+          t.localDraft ||
           normalize((t.text || '') + ' ' + (t.desc || '')).includes(q) ||
           (t.assigneeIds || []).some(email => normalize(memberName(email) + ' ' + email).includes(q))
         );
@@ -1654,9 +1706,9 @@
     // Tablo ve mobil kart listesi: durum/tarih cipleri (Bugün/Geciken/Yapılıyor/...) tek secimli
     function getFilteredTasks() {
       let list = baseTaskPool();
-      if (taskStatusFilter === 'bugun') list = list.filter(isDueToday);
-      else if (taskStatusFilter === 'geciken') list = list.filter(isOverdue);
-      else list = list.filter(t => t.status === taskStatusFilter);
+      if (taskViewFilter === 'bugun') list = list.filter(t => t.localDraft || isDueToday(t));
+      else if (taskViewFilter === 'geciken') list = list.filter(t => t.localDraft || isOverdue(t));
+      else if (taskViewFilter !== 'all') list = list.filter(t => t.localDraft || t.status === taskViewFilter);
       return sortTasks(list);
     }
 
@@ -1664,8 +1716,8 @@
     // tarih daraltmasi (Tümü/Bugün/Geciken) uygulanir
     function getBoardTasks() {
       let list = baseTaskPool();
-      if (boardDateFilter === 'bugun') list = list.filter(isDueToday);
-      else if (boardDateFilter === 'geciken') list = list.filter(isOverdue);
+      if (taskViewFilter === 'bugun') list = list.filter(t => t.localDraft || isDueToday(t));
+      else if (taskViewFilter === 'geciken') list = list.filter(t => t.localDraft || isOverdue(t));
       return sortTasks(list);
     }
 
@@ -1679,6 +1731,7 @@
       if (activeTab !== 'tasks') return;
 
       let pool = visibleTasks();
+      if (newTaskDraft && !pool.some(t => t.id === newTaskDraft.id)) pool = [newTaskDraft, ...pool];
       if (taskFilter === 'unassigned') pool = pool.filter(t => !(t.assigneeIds || []).length);
       else if (taskFilter !== 'all') pool = pool.filter(t => (t.assigneeIds || []).includes(taskFilter));
 
@@ -1692,13 +1745,14 @@
       if (taskViewMode === 'board' && !isNarrowViewport()) {
         const counts = { all: pool.length, bugun: pool.filter(isDueToday).length, geciken: pool.filter(isOverdue).length };
         taskFiltersEl.innerHTML = BOARD_DATE_FILTERS.map(f => {
-          const active = boardDateFilter === f.id;
-          return `<button type="button" data-board-date-filter="${f.id}" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition ${chipCls(active)}">${f.name} · ${counts[f.id]}</button>`;
+          const active = taskViewFilter === f.id;
+          return `<button type="button" data-task-filter="${f.id}" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition ${chipCls(active)}">${f.name} · ${counts[f.id]}</button>`;
         }).join('');
         return;
       }
 
       const counts = {
+        all: pool.length,
         bugun: pool.filter(isDueToday).length,
         geciken: pool.filter(isOverdue).length,
         yapiliyor: pool.filter(t => t.status === 'yapiliyor').length,
@@ -1707,7 +1761,7 @@
       };
 
       taskFiltersEl.innerHTML = TASK_FILTERS.map(f => {
-        const active = taskStatusFilter === f.id;
+        const active = taskViewFilter === f.id;
         return `<button type="button" data-task-filter="${f.id}" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition ${chipCls(active)}">${f.name} · ${counts[f.id]}</button>`;
       }).join('');
     }
@@ -1717,9 +1771,11 @@
       const urls = (text || '').match(URL_RE) || [];
       if (!urls.length) return '';
       return `<div class="mt-1.5 flex flex-wrap gap-1.5">${urls.map(url => {
-        const meta = linkMeta(url);
-        return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="link-chip" style="--chip:${meta.color}"><span class="link-chip-dot"></span>${escapeHtml(meta.label)}<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M7 17L17 7M7 7h10v10"/></svg></a>`;
-      }).join('')}</div>`;
+        const safeUrl = safeExternalUrl(url);
+        if (!safeUrl) return '';
+        const meta = linkMeta(safeUrl);
+        return `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" class="link-chip" style="--chip:${meta.color}"><span class="link-chip-dot"></span>${escapeHtml(meta.label)}<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M7 17L17 7M7 7h10v10"/></svg></a>`;
+      }).filter(Boolean).join('')}</div>`;
     }
 
     const CELL_INPUT_CLS = 'w-full rounded-lg border accent-border-input bg-white px-2.5 py-1.5 text-sm text-slate-700 accent-ring-input dark:bg-slate-900 dark:text-slate-200';
@@ -1736,7 +1792,7 @@
     const TASK_GRID = 'grid grid-cols-[minmax(190px,1.2fr)_minmax(230px,2fr)_112px_180px_142px_40px] items-start';
 
     function renderTaskTitleCell(task) {
-      if (cellEdit && cellEdit.kind === 'task-title' && cellEdit.id === task.id) {
+      if (cellEdit && (cellEdit.kind === 'task-title' || cellEdit.kind === 'new-task') && cellEdit.id === task.id) {
         return `<div class="px-3 py-2">
           <input data-cell-input type="text" class="${CELL_INPUT_CLS}" />
           <p class="mt-1 text-[10px] text-slate-400">Enter kaydeder · Esc iptal</p>
@@ -1763,7 +1819,9 @@
         </div>`;
       }
       const desc = (task.desc || '').trim();
-      return `<div data-cell="task-desc" data-id="${task.id}" class="px-3 py-2 cursor-text min-w-0" title="Detayları görmek ve yazmak için tıkla">
+      // Kisaltilmis hucrede tam metni fare-ustu ipucu olarak goster
+      const descTip = desc ? escapeHtml(desc).replace(/"/g, '&quot;') : 'Detayları görmek ve yazmak için tıkla';
+      return `<div data-cell="task-desc" data-id="${task.id}" class="px-3 py-2 cursor-text min-w-0" title="${descTip}">
         ${desc
           ? `<div class="text-sm text-slate-500 dark:text-slate-400 truncate">${linkify(desc.split('\n')[0])}</div>`
           : '<span class="text-sm text-slate-300 dark:text-slate-600">Açıklama ekle…</span>'}
@@ -1997,7 +2055,8 @@
         </div>`;
       }
       const body = (d.body || '').trim();
-      return `<div data-cell="doc-body" data-id="${d.id}" class="px-3 py-2 cursor-text min-w-0" title="Detayları görmek ve yazmak için tıkla">
+      const bodyTip = body ? escapeHtml(body).replace(/"/g, '&quot;') : 'Detayları görmek ve yazmak için tıkla';
+      return `<div data-cell="doc-body" data-id="${d.id}" class="px-3 py-2 cursor-text min-w-0" title="${bodyTip}">
         ${body
           ? `<div class="text-sm text-slate-500 dark:text-slate-400 truncate">${linkify(body.split('\n')[0])}</div>`
           : '<span class="text-sm text-slate-300 dark:text-slate-600">Açıklama ekle…</span>'}
@@ -2089,12 +2148,20 @@
     }
 
     function cancelCellEdit() {
+      if (cellEdit && cellEdit.kind === 'new-task') newTaskDraft = null;
       cellEdit = null;
       renderMain();
     }
 
     async function saveCellEdit() {
-      if (!cellEdit) return;
+      if (cellSavePromise) return cellSavePromise;
+      cellSavePromise = commitCellEdit();
+      try { return await cellSavePromise; }
+      finally { cellSavePromise = null; }
+    }
+
+    async function commitCellEdit() {
+      if (!cellEdit) return true;
       // Kaydetmeden once o an gorunen input'tan guncel metni al; yoksa yeniden
       // render tetiklenmemisse cellEdit.draft bayat kalir ve bos/eski deger kaydedilirdi
       captureCellDraft();
@@ -2103,23 +2170,36 @@
       const draftTitle = (cellEdit.draftTitle || '').trim();
 
       try {
-        if (kind === 'task-title') {
+        if (kind === 'new-task') {
+          if (!draft) {
+            newTaskDraft = null;
+            cellEdit = null;
+            renderMain();
+            return true;
+          }
+          const task = { ...newTaskDraft, text: draft };
+          if (!task || task.id !== id) return false;
+          const { id: taskId, localDraft, ...data } = task;
+          await setDoc(doc(db, "tasks", taskId), data);
+          newTaskDraft = null;
+        } else if (kind === 'task-title') {
           const t = tasks.find(x => x.id === id);
-          if (!t || !draft) { cancelCellEdit(); return; }
+          if (!t) return false;
+          if (!draft) { showToast('Görev adı boş olamaz'); return false; }
           await updateDoc(doc(db, "tasks", id), {
             text: draft,
             updatedAt: new Date().toISOString()
           });
         } else if (kind === 'task-desc') {
           const t = tasks.find(x => x.id === id);
-          if (!t) { cancelCellEdit(); return; }
+          if (!t) return false;
           await updateDoc(doc(db, "tasks", id), {
             desc: draft,
             updatedAt: new Date().toISOString()
           });
         } else if (kind === 'doc-title') {
           const d = docs.find(x => x.id === id);
-          if (!d) { cancelCellEdit(); return; }
+          if (!d) return false;
           await updateDoc(doc(db, "docs", id), {
             title: draft,
             brandIds: detectBrandIds(draft + '\n' + (d.body || '')),
@@ -2127,14 +2207,14 @@
           });
         } else if (kind === 'doc-body') {
           const d = docs.find(x => x.id === id);
-          if (!d) { cancelCellEdit(); return; }
+          if (!d) return false;
           await updateDoc(doc(db, "docs", id), {
             body: draft,
             brandIds: detectBrandIds((d.title || '') + '\n' + draft),
             updatedAt: new Date().toISOString()
           });
         } else if (kind === 'new-doc') {
-          if (!draft && !draftTitle) { cancelCellEdit(); return; }
+          if (!draft && !draftTitle) { cellEdit = null; renderMain(); return true; }
           await setDoc(doc(db, "docs", crypto.randomUUID()), {
             title: draftTitle,
             body: draft,
@@ -2145,8 +2225,11 @@
         }
         cellEdit = null;
         renderMain();
+        return true;
       } catch {
         showToast('Kaydedilemedi');
+        focusCellInput();
+        return false;
       }
     }
 
@@ -2245,28 +2328,26 @@
 
     // "+ Yeni gorev" dogrudan bos bir satir olusturur; baslik hucresi
     // duzenlemeye acik gelir, kisi/durum/tarih satir icinden doldurulur
-    async function createEmptyTask() {
+    function createEmptyTask() {
+      if (newTaskDraft) { focusCellInput(); return; }
       const id = crypto.randomUUID();
       // Pano (kanban) gorunumunde yeni gorev butonu "Yapılıyor" sutununda durur;
       // tabloda ise hangi durum filtresi aciksa gorev o durumla dogar ki satir gorunur olsun
       const status = (taskViewMode === 'board' && !isNarrowViewport())
         ? 'yapiliyor'
-        : (TASK_STATUSES.some(s => s.id === taskStatusFilter) ? taskStatusFilter : 'yapiliyor');
+        : (TASK_STATUSES.some(s => s.id === taskViewFilter) ? taskViewFilter : 'yapiliyor');
       // Kisi filtresindeyken eklenen gorev o kisiye atanir
       const assigneeIds = (taskFilter !== 'all' && taskFilter !== 'unassigned') ? [taskFilter] : [];
-      try {
-        await setDoc(doc(db, "tasks", id), {
-          text: '',
-          desc: '',
-          assigneeIds,
-          status,
-          dueDate: null,
-          createdAt: new Date().toISOString()
-        });
-        cellEdit = { kind: 'task-title', id, draft: '', draftTitle: '', hadFocus: true, focusTitle: false, selStart: null, selEnd: null };
-      } catch {
-        showToast('Görev oluşturulamadı');
-      }
+      const dueDate = taskViewFilter === 'bugun' ? todayStr()
+        : taskViewFilter === 'geciken' ? (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })()
+        : null;
+      newTaskDraft = {
+        id, text: '', desc: '', assigneeIds, status, dueDate,
+        doneAt: status === 'bitti' ? new Date().toISOString() : null,
+        createdAt: new Date().toISOString(), localDraft: true
+      };
+      cellEdit = { kind: 'new-task', id, draft: '', draftTitle: '', hadFocus: true, focusTitle: false, selStart: null, selEnd: null };
+      renderMain();
     }
 
     function renderViewToggle() {
@@ -2411,6 +2492,11 @@
       if (cellBtn && !e.target.closest('a')) {
         const id = cellBtn.dataset.id;
         const kind = cellBtn.dataset.cell;
+        // Baska bir hucreye geciliyorsa acik duzenlemeyi once kaydet (metin kaybolmasin).
+        // Farkli bir ogeye geciliyorsa bos kalan yeni gorevi de temizle.
+        if (cellEdit && (cellEdit.id !== id || cellEdit.kind !== kind)) {
+          if (!await saveCellEdit()) return;
+        }
         if (kind === 'task-title') { const t = tasks.find(x => x.id === id); if (t) openCellEdit('task-title', id, t.text || ''); }
         else if (kind === 'task-desc') { const t = tasks.find(x => x.id === id); if (t) openCellEdit('task-desc', id, t.desc || ''); }
         else if (kind === 'doc-title') { const d = docs.find(x => x.id === id); if (d) openCellEdit('doc-title', id, d.title || ''); }
@@ -2418,10 +2504,19 @@
         return;
       }
 
-      if (e.target.closest('[data-save-cell]')) { saveCellEdit(); return; }
+      if (e.target.closest('[data-save-cell]')) { await saveCellEdit(); return; }
       if (e.target.closest('[data-cancel-cell]')) { cancelCellEdit(); return; }
-      if (e.target.closest('[data-new-task]')) { createEmptyTask(); return; }
-      if (e.target.closest('[data-new-doc]')) { openCellEdit('new-doc', null, '', ''); return; }
+      if (e.target.closest('[data-new-task]')) {
+        if (cellEdit && !await saveCellEdit()) return;
+        createEmptyTask();
+        return;
+      }
+      if (e.target.closest('[data-new-doc]')) {
+        // Acik bir duzenleme varsa kaydet, bos yeni gorevi temizle, sonra yeni not satirini ac
+        if (cellEdit && !await saveCellEdit()) return;
+        openCellEdit('new-doc', null, '', '');
+        return;
+      }
 
       const personCell = e.target.closest('[data-person-cell]');
       if (personCell) {
@@ -2437,9 +2532,15 @@
         const taskId = assigneeOpt.dataset.assigneeOption.slice(0, sep);
         const email = assigneeOpt.dataset.assigneeOption.slice(sep + 1);
         const task = tasks.find(t => t.id === taskId);
-        if (task) {
-          const cur = new Set(task.assigneeIds || []);
+        const targetTask = task || (newTaskDraft && newTaskDraft.id === taskId ? newTaskDraft : null);
+        if (targetTask) {
+          const cur = new Set(targetTask.assigneeIds || []);
           if (cur.has(email)) cur.delete(email); else cur.add(email);
+          if (targetTask.localDraft) {
+            targetTask.assigneeIds = [...cur];
+            renderMain();
+            return;
+          }
           try {
             await updateDoc(doc(db, "tasks", taskId), { assigneeIds: [...cur] });
           } catch (err) {
@@ -2470,6 +2571,12 @@
 
       const taskDeleteBtn = e.target.closest('[data-task-delete]');
       if (taskDeleteBtn) {
+        if (newTaskDraft && newTaskDraft.id === taskDeleteBtn.dataset.taskDelete) {
+          newTaskDraft = null;
+          cellEdit = null;
+          renderMain();
+          return;
+        }
         if (cellEdit && cellEdit.id === taskDeleteBtn.dataset.taskDelete) cellEdit = null;
         scheduleDelete('tasks', taskDeleteBtn.dataset.taskDelete, 'Görev silindi');
         return;
@@ -2549,41 +2656,44 @@
 
     async function deleteBrand(brandId) {
       const brand = brands.find(b => b.id === brandId);
+      if (deletingBrandIds.has(brandId)) return;
       if (!brand || !confirm(`"${brand.name}" markasını silmek istediğinize emin misiniz?`)) return;
+      deletingBrandIds.add(brandId);
 
       try {
-        await deleteDoc(doc(db, "brands", brandId));
+        // Tembel yuklenen yerel dizilere guvenme: tum ilgili koleksiyonlari
+        // sunucudan sorgula. Sunucuya ulasilamazsa hicbir yazma baslatilmaz.
+        const collectionNames = ['notes', 'tasks', 'docs', 'tasksArchive'];
+        const snapshots = await Promise.all(collectionNames.map(name =>
+          getDocsFromServer(query(collection(db, name), where('brandIds', 'array-contains', brandId)))
+        ));
+        const affectedDocs = snapshots.flatMap(snapshot => snapshot.docs);
 
-        // Update existing notes mapped to this brand
-        const affectedNotes = notes.filter(n => n.brandIds && n.brandIds.includes(brandId));
-        for (const note of affectedNotes) {
-          const updatedIds = note.brandIds.filter(id => id !== brandId);
-          await updateDoc(doc(db, "notes", note.id), {
-            brandIds: updatedIds.length ? updatedIds : [UNCATEGORIZED.id]
-          });
+        // Firestore batch siniri 500 yazmadir; marka silme de bir yazma sayilir.
+        // Sinir asilirsa parcali ve tutarsiz bir silme yapmak yerine tamamen dur.
+        if (affectedDocs.length > 499) {
+          showToast('Marka çok fazla kayıtta kullanılıyor; silme yapılmadı');
+          return;
         }
 
-        // Gorev ve bilgi notlarindan da ayni etiket dusurulur (yalnizca
-        // senkronize edilmis kayitlar bilinir; digerleri Tum filtresinde kalir)
-        const affectedTasks = tasks.filter(t => t.brandIds && t.brandIds.includes(brandId));
-        for (const t of affectedTasks) {
-          const updatedIds = t.brandIds.filter(id => id !== brandId);
-          await updateDoc(doc(db, "tasks", t.id), {
+        const batch = writeBatch(db);
+        affectedDocs.forEach(record => {
+          const currentIds = Array.isArray(record.data().brandIds) ? record.data().brandIds : [];
+          const updatedIds = currentIds.filter(id => id !== brandId);
+          batch.update(record.ref, {
             brandIds: updatedIds.length ? updatedIds : [UNCATEGORIZED.id]
           });
-        }
-        const affectedDocs = docs.filter(d => d.brandIds && d.brandIds.includes(brandId));
-        for (const d of affectedDocs) {
-          const updatedIds = d.brandIds.filter(id => id !== brandId);
-          await updateDoc(doc(db, "docs", d.id), {
-            brandIds: updatedIds.length ? updatedIds : [UNCATEGORIZED.id]
-          });
-        }
+        });
+        batch.delete(doc(db, "brands", brandId));
+        await batch.commit();
 
         if (activeFilter === brandId) activeFilter = 'all';
         showToast(`"${brand.name}" silindi`);
       } catch (e) {
-        showToast('Marka silinemedi');
+        const offline = e && (e.code === 'unavailable' || e.code === 'firestore/unavailable');
+        showToast(offline ? 'Marka silmek için internet bağlantısı gerekli' : 'Marka silinemedi; hiçbir değişiklik yapılmadı');
+      } finally {
+        deletingBrandIds.delete(brandId);
       }
     }
 
@@ -2663,7 +2773,9 @@
       const shortcut = e.target.closest('[data-task-shortcut]');
       if (shortcut) {
         taskFilter = 'all';
-        taskStatusFilter = shortcut.dataset.taskShortcut;
+        taskViewFilter = shortcut.dataset.taskShortcut;
+        localStorage.setItem(TASK_PERSON_FILTER_KEY, taskFilter);
+        localStorage.setItem(TASK_VIEW_FILTER_KEY, taskViewFilter);
         renderSidebar();
         renderMain();
         return;
@@ -2671,24 +2783,27 @@
       const filter = e.target.closest('[data-filter]');
       if (filter) {
         // Gorevlerde sol liste kisi bazli (taskFilter), diger sekmelerde marka bazli (activeFilter)
-        if (activeTab === 'tasks') taskFilter = filter.dataset.filter;
-        else activeFilter = filter.dataset.filter;
+        if (activeTab === 'tasks') {
+          taskFilter = filter.dataset.filter;
+          localStorage.setItem(TASK_PERSON_FILTER_KEY, taskFilter);
+        } else {
+          activeFilter = filter.dataset.filter;
+        }
         renderSidebar();
         renderMain();
       }
     });
 
-    tabNav.addEventListener('click', e => {
+    tabNav.addEventListener('click', async e => {
       const btn = e.target.closest('[data-tab]');
-      if (btn) setTab(btn.dataset.tab);
+      if (btn) await setTab(btn.dataset.tab);
     });
 
     taskFiltersEl.addEventListener('click', e => {
-      const boardBtn = e.target.closest('[data-board-date-filter]');
-      if (boardBtn) { boardDateFilter = boardBtn.dataset.boardDateFilter; renderMain(); return; }
       const btn = e.target.closest('[data-task-filter]');
       if (!btn) return;
-      taskStatusFilter = btn.dataset.taskFilter;
+      taskViewFilter = btn.dataset.taskFilter;
+      localStorage.setItem(TASK_VIEW_FILTER_KEY, taskViewFilter);
       renderMain();
     });
 
@@ -2729,6 +2844,11 @@
     notesContainer.addEventListener('change', async e => {
       const due = e.target.closest('[data-due-input]');
       if (!due) return;
+      if (newTaskDraft && due.dataset.dueInput === newTaskDraft.id) {
+        newTaskDraft.dueDate = due.value || null;
+        renderMain();
+        return;
+      }
       try {
         await updateDoc(doc(db, "tasks", due.dataset.dueInput), { dueDate: due.value || null });
       } catch (err) {
@@ -2819,6 +2939,10 @@
       const btn = e.target.closest('[data-task-view]');
       if (!btn || btn.dataset.taskView === taskViewMode) return;
       taskViewMode = btn.dataset.taskView;
+      if (taskViewMode === 'board' && !['all', 'bugun', 'geciken'].includes(taskViewFilter)) {
+        taskViewFilter = 'all';
+        localStorage.setItem(TASK_VIEW_FILTER_KEY, taskViewFilter);
+      }
       localStorage.setItem(TASK_VIEW_KEY, taskViewMode);
       applyViewMode();
       renderMain();
@@ -2947,13 +3071,15 @@
         document.getElementById('admin-modal').classList.add('hidden');
       }
     });
-    document.addEventListener('click', e => {
+    document.addEventListener('click', async e => {
       // composedPath() kullanilir: handleNotesClick ayni tikta notesContainer.innerHTML'i
       // degistirebiliyor, bu da e.target'i DOM'dan koparir ve e.target.closest(...) artik
       // hicbir ust elemani bulamaz. composedPath() ise olay gonderilirken (mutasyondan once)
       // hesaplanan gercek yolu dondurur, o yuzden guvenilir kalir.
       if (!e.composedPath().includes(notesContainer)) {
         closeNoteMenus();
+        // Kayit basarisizsa duzenleme durumu ve taslak ekranda kalir.
+        if (cellEdit) await saveCellEdit();
         if (openMenuKey) { openMenuKey = null; renderMain(); }
       }
     });
