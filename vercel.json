@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/__/auth/(.*)", "destination": "https://loqnot-6c333.firebaseapp.com/__/auth/$1" },
+    { "source": "/__/firebase/(.*)", "destination": "https://loqnot-6c333.firebaseapp.com/__/firebase/$1" }
+  ]
+}
