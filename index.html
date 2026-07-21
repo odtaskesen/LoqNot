@@ -122,7 +122,6 @@
     .dark .lg\:sticky { background: #111113 !important; border-color: #2a2a2e !important; box-shadow: none !important; }
     .dark input,
     .dark textarea,
-    .dark #theme-toggle { background: #0b0b0d !important; border-color: #2a2a2e !important; }
     .dark input:focus,
     .dark textarea:focus { background: #101012 !important; border-color: var(--accent-600) !important; }
     .dark .sidebar-item:hover { background: #161618 !important; }
@@ -146,7 +145,17 @@
     article.note-card { border-left: 3px solid var(--spine, #94a3b8) !important; }
     .tab-btn { transition: all 0.15s ease; }
     .dark #tab-nav { background: #0b0b0d !important; border-color: #2a2a2e !important; }
-    .task-done-text { text-decoration: line-through; opacity: 0.65; }
+    .task-rich-preview { line-height: 1.45; }
+    .task-rich-preview p + p { margin-top: 0.45rem; }
+    .task-rich-preview ul { list-style: disc; padding-left: 1.25rem; }
+    .task-rich-preview ol { list-style: decimal; padding-left: 1.25rem; }
+    .task-rich-preview a { color: var(--accent-500); text-decoration: underline; text-underline-offset: 2px; }
+    .rich-editor { min-height: 120px; max-height: 360px; overflow-y: auto; line-height: 1.55; }
+    .rich-editor:empty::before { content: attr(data-placeholder); color: #94a3b8; pointer-events: none; }
+    .rich-editor ul { list-style: disc; padding-left: 1.25rem; }
+    .rich-editor ol { list-style: decimal; padding-left: 1.25rem; }
+    .rich-editor a { color: var(--accent-500); text-decoration: underline; }
+    .rich-toolbar button { min-width: 30px; }
     .dark input[type="date"] { color-scheme: dark; }
   </style>
 </head>
@@ -156,6 +165,10 @@
     <aside class="w-full lg:w-64 shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200/80 bg-white/80 backdrop-blur-sm flex flex-col lg:sticky lg:top-0 lg:h-screen z-20 dark:bg-slate-900/85 dark:border-slate-700/80">
       <div class="px-4 py-3 lg:p-5 border-b border-slate-100 dark:border-slate-800">
         <p id="sidebar-title" class="text-xs font-semibold uppercase tracking-widest text-slate-400">Markalar</p>
+        <label id="brand-search-wrap" class="mt-3 block">
+          <span class="sr-only">Marka ara</span>
+          <input id="brand-search" type="search" placeholder="Marka ara…" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 placeholder:text-slate-400 focus:border-violet-300 focus:ring-2 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" />
+        </label>
       </div>
       <nav id="brand-nav" class="flex gap-2 overflow-x-auto p-3 lg:block lg:flex-1 lg:space-y-1.5 lg:overflow-x-visible lg:overflow-y-auto lg:min-h-0"></nav>
 
@@ -203,41 +216,7 @@
     </aside>
 
     <main class="flex-1 flex flex-col min-w-0 relative">
-      <div class="absolute top-4 right-4 lg:top-6 lg:right-6 z-10 flex items-center gap-2">
-        <div class="relative">
-          <button
-            id="accent-toggle"
-            type="button"
-            class="p-2.5 rounded-xl border border-slate-200/80 bg-white/80 backdrop-blur-sm text-slate-500 hover:border-violet-200 hover:bg-violet-50 shadow-sm transition dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-400"
-            title="Vurgu rengi"
-            aria-label="Vurgu rengi"
-          >
-            <span class="block w-5 h-5 leading-5 text-center text-base">🎨</span>
-          </button>
-          <div id="accent-panel" class="hidden absolute right-0 top-full mt-2 z-30 p-2 rounded-xl border border-slate-200 bg-white shadow-lg flex items-center gap-1.5 dark:border-slate-700 dark:bg-slate-900">
-            <button type="button" data-accent="violet" class="w-6 h-6 rounded-full transition" style="background:#7c3aed" title="Mor (varsayılan)"></button>
-            <button type="button" data-accent="turquoise" class="w-6 h-6 rounded-full transition" style="background:#0d9488" title="Turkuaz"></button>
-            <button type="button" data-accent="amber" class="w-6 h-6 rounded-full transition" style="background:#d97706" title="Amber"></button>
-            <button type="button" data-accent="pink" class="w-6 h-6 rounded-full transition" style="background:#db2777" title="Pembe"></button>
-          </div>
-        </div>
-        <button
-          id="theme-toggle"
-          type="button"
-          class="p-2.5 rounded-xl border border-slate-200/80 bg-white/80 backdrop-blur-sm text-slate-500 hover:text-violet-600 hover:border-violet-200 hover:bg-violet-50 shadow-sm transition dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-400 dark:hover:text-amber-400 dark:hover:border-amber-500/30 dark:hover:bg-amber-950/20"
-          title="Tema değiştir"
-          aria-label="Tema değiştir"
-        >
-          <svg id="icon-sun" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
-          </svg>
-          <svg id="icon-moon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
-          </svg>
-        </button>
-      </div>
-
-      <header class="px-5 pt-6 pb-4 sm:px-6 lg:px-8 lg:pt-7 lg:pb-5 border-b border-slate-200/70 dark:border-slate-800/80 pr-32">
+      <header class="px-5 pt-6 pb-4 sm:px-6 lg:px-8 lg:pt-7 lg:pb-5 border-b border-slate-200/70 dark:border-slate-800/80">
         <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
           LoqNot<span class="text-violet-500">.</span>
         </h1>
@@ -260,21 +239,27 @@
         <div id="user-bar" class="hidden mt-3 items-center gap-2">
           <img id="user-avatar" class="hidden w-7 h-7 rounded-full border border-slate-200 dark:border-slate-700" alt="" referrerpolicy="no-referrer" />
           <span id="user-email" class="text-xs font-medium text-slate-500 dark:text-slate-400 truncate max-w-[190px]"></span>
-          <button
-            id="admin-btn"
-            type="button"
-            class="hidden items-center gap-1.5 px-2.5 py-1 rounded-lg border border-violet-200 bg-violet-50/70 text-[11px] font-semibold text-violet-700 hover:bg-violet-100 transition dark:border-violet-500/40 dark:bg-violet-950/30 dark:text-violet-300 dark:hover:bg-violet-950/60"
-          >
-            Onay Paneli
-            <span id="admin-badge" class="hidden min-w-[18px] px-1 py-0.5 rounded-full accent-bg text-white text-[10px] leading-none text-center">0</span>
-          </button>
-          <button
-            id="sign-out-btn"
-            type="button"
-            class="px-2.5 py-1 rounded-lg border border-slate-200 text-[11px] font-semibold text-slate-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition dark:border-slate-600 dark:text-slate-400 dark:hover:text-red-400 dark:hover:border-red-500/40 dark:hover:bg-red-950/30"
-          >
-            Çıkış
-          </button>
+          <details class="relative">
+            <summary class="list-none cursor-pointer p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200" title="Profil ve ayarlar">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </summary>
+            <div class="absolute left-0 mt-2 z-30 w-56 rounded-xl border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+              <p class="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Ayarlar</p>
+              <button id="theme-toggle" type="button" class="w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800">Tema <span class="text-slate-400">Açık / koyu</span></button>
+              <div class="px-2.5 py-2">
+                <p class="mb-2 text-xs font-semibold text-slate-600 dark:text-slate-300">Vurgu rengi</p>
+                <div id="accent-panel" class="flex items-center gap-2">
+                  <button type="button" data-accent="violet" class="w-6 h-6 rounded-full transition" style="background:#7c3aed" title="Mor (varsayılan)"></button>
+                  <button type="button" data-accent="turquoise" class="w-6 h-6 rounded-full transition" style="background:#0d9488" title="Turkuaz"></button>
+                  <button type="button" data-accent="amber" class="w-6 h-6 rounded-full transition" style="background:#d97706" title="Amber"></button>
+                  <button type="button" data-accent="pink" class="w-6 h-6 rounded-full transition" style="background:#db2777" title="Pembe"></button>
+                </div>
+              </div>
+              <button id="admin-btn" type="button" class="hidden w-full items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-violet-700 hover:bg-violet-50 dark:text-violet-300 dark:hover:bg-violet-950/40">Onay Paneli <span id="admin-badge" class="hidden min-w-[18px] px-1 py-0.5 rounded-full accent-bg text-white text-[10px] leading-none text-center">0</span></button>
+              <div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>
+              <button id="sign-out-btn" type="button" class="w-full rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/30 dark:hover:text-red-400">Çıkış</button>
+            </div>
+          </details>
         </div>
       </header>
 
@@ -489,6 +474,11 @@
     </div>
   </div>
 
+  <aside id="task-detail-panel" class="fixed inset-y-0 right-0 z-50 hidden w-full max-w-xl border-l border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-[#111113]">
+    <div id="task-detail-content" class="h-full overflow-y-auto"></div>
+  </aside>
+  <div id="mention-menu" class="hidden fixed z-[60] w-52 rounded-lg border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-slate-900"></div>
+
   <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl bg-slate-800 text-white text-sm font-medium shadow-lg opacity-0 pointer-events-none transition-opacity duration-300 z-50 dark:bg-slate-100 dark:text-slate-900"></div>
 
   <script type="module">
@@ -571,6 +561,7 @@
     const TASK_VIEW_KEY = 'loqnot-task-view-v1';
     const TASK_PERSON_FILTER_KEY = 'loqnot-task-filter-v1';
     const TASK_VIEW_FILTER_KEY = 'loqnot-task-view-filter-v2';
+    const TASK_SORT_KEY = 'loqnot-task-sort-v1';
     const BOARD_DATE_FILTERS = [
       { id: 'all',     name: 'Tümü' },
       { id: 'bugun',   name: '🔥 Bugün' },
@@ -594,11 +585,22 @@
     let taskViewMode = localStorage.getItem(TASK_VIEW_KEY) === 'board' ? 'board' : 'table';
     const savedTaskViewFilter = localStorage.getItem(TASK_VIEW_FILTER_KEY)
       || localStorage.getItem(taskViewMode === 'board' ? 'loqnot-board-date-v1' : 'loqnot-task-status-v1');
-    let taskViewFilter = TASK_FILTERS.some(f => f.id === savedTaskViewFilter) ? savedTaskViewFilter : 'yapiliyor';
+    let taskViewFilter = TASK_FILTERS.some(f => f.id === savedTaskViewFilter) ? savedTaskViewFilter : 'all';
     if (taskViewMode === 'board' && !['all', 'bugun', 'geciken'].includes(taskViewFilter)) taskViewFilter = 'all';
     localStorage.setItem(TASK_VIEW_FILTER_KEY, taskViewFilter);
+    const TASK_SORT_MODES = [
+      { id: 'created-desc', name: 'En yeni' },
+      { id: 'status-active', name: 'Durum · Aktif önce' },
+      { id: 'status-done', name: 'Durum · Bitti önce' },
+      { id: 'due-asc', name: 'Bitiş tarihi' },
+    ];
+    let taskSortMode = TASK_SORT_MODES.some(s => s.id === localStorage.getItem(TASK_SORT_KEY))
+      ? localStorage.getItem(TASK_SORT_KEY)
+      : 'created-desc';
     let viewMode = localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid';
-    let showEmptyBrands = localStorage.getItem(EMPTY_BRANDS_KEY) === '1';
+    let showEmptyBrands = false;
+    let brandSearchQuery = '';
+    let taskDetailId = null;
     let searchQuery = '';
     let editingNoteId = null;
     let editingTaskId = null;
@@ -633,6 +635,7 @@
     const deletingBrandIds = new Set();
 
     const brandNav = document.getElementById('brand-nav');
+    const brandSearch = document.getElementById('brand-search');
     const notesContainer = document.getElementById('notes-container');
     const emptyState = document.getElementById('empty-state');
     const emptyTitle = document.getElementById('empty-title');
@@ -648,7 +651,6 @@
     const viewToggle = document.getElementById('view-toggle');
     const taskViewToggle = document.getElementById('task-view-toggle');
     const themeToggle = document.getElementById('theme-toggle');
-    const accentToggle = document.getElementById('accent-toggle');
     const accentPanel = document.getElementById('accent-panel');
     const toggleBrandForm = document.getElementById('toggle-brand-form');
     const brandForm = document.getElementById('brand-form');
@@ -670,6 +672,10 @@
     const composeAside = document.getElementById('compose-aside');
     const sidebarTitle = document.getElementById('sidebar-title');
     const brandTools = document.getElementById('brand-tools');
+    const taskDetailPanel = document.getElementById('task-detail-panel');
+    const taskDetailContent = document.getElementById('task-detail-content');
+    const mentionMenu = document.getElementById('mention-menu');
+    let mentionTarget = null;
     let deferredInstallPrompt = null;
 
     function slugify(name) {
@@ -1014,7 +1020,7 @@
       tasksSyncStarted = false;
       docsSyncStarted = false;
       taskFilter = 'all';
-      taskViewFilter = 'yapiliyor';
+      taskViewFilter = 'all';
       cellEdit = null;
       newTaskDraft = null;
       cellSavePromise = null;
@@ -1155,6 +1161,80 @@
       }).join('');
     }
 
+    const RICH_ALLOWED_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'P', 'DIV', 'BR', 'UL', 'OL', 'LI', 'A']);
+
+    function sanitizeRichHtml(rawHtml) {
+      const template = document.createElement('template');
+      template.innerHTML = String(rawHtml || '');
+      const cleanNode = node => {
+        if (node.nodeType === Node.TEXT_NODE) return;
+        if (node.nodeType !== Node.ELEMENT_NODE) { node.remove(); return; }
+        [...node.childNodes].forEach(cleanNode);
+        if (!RICH_ALLOWED_TAGS.has(node.tagName)) {
+          node.replaceWith(...node.childNodes);
+          return;
+        }
+        const href = node.tagName === 'A' ? node.getAttribute('href') : null;
+        [...node.attributes].forEach(attr => node.removeAttribute(attr.name));
+        if (node.tagName === 'A') {
+          const safeUrl = safeExternalUrl(href || '');
+          if (!safeUrl) { node.replaceWith(...node.childNodes); return; }
+          node.setAttribute('href', safeUrl);
+          node.setAttribute('target', '_blank');
+          node.setAttribute('rel', 'noopener noreferrer');
+        }
+      };
+      [...template.content.childNodes].forEach(cleanNode);
+      return template.innerHTML;
+    }
+
+    function autoLinkRichHtml(rawHtml) {
+      const template = document.createElement('template');
+      template.innerHTML = sanitizeRichHtml(rawHtml);
+      const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT);
+      const textNodes = [];
+      while (walker.nextNode()) {
+        if (!walker.currentNode.parentElement?.closest('a')) textNodes.push(walker.currentNode);
+      }
+      textNodes.forEach(node => {
+        const text = node.nodeValue || '';
+        const parts = text.split(URL_RE);
+        if (parts.length === 1) return;
+        const fragment = document.createDocumentFragment();
+        parts.forEach((part, index) => {
+          if (index % 2 === 0) { fragment.append(document.createTextNode(part)); return; }
+          const safeUrl = safeExternalUrl(part);
+          if (!safeUrl) { fragment.append(document.createTextNode(part)); return; }
+          const link = document.createElement('a');
+          link.href = safeUrl;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = part;
+          fragment.append(link);
+        });
+        node.replaceWith(fragment);
+      });
+      return template.innerHTML;
+    }
+
+    function richTextToPlain(rawHtml) {
+      const template = document.createElement('template');
+      template.innerHTML = sanitizeRichHtml(rawHtml)
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(?:p|div|li)>/gi, '\n');
+      return (template.content.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    function taskDescriptionHtml(task) {
+      if (task.descHtml) return autoLinkRichHtml(task.descHtml);
+      return linkify(task.desc || '').replace(/\n/g, '<br>');
+    }
+
+    function taskDescriptionEditorHtml(task) {
+      if (task.descHtml) return sanitizeRichHtml(task.descHtml);
+      return escapeHtml(task.desc || '').replace(/\n/g, '<br>');
+    }
+
     function renderBrandBadge(brandId) {
       const brand = getBrandMeta(brandId);
       const color = displayColor(brand.color);
@@ -1204,7 +1284,9 @@
           { id: 'unassigned', name: 'Atanmamış', color: '#94a3b8', count: countTasksFor('unassigned'), deletable: false },
         ];
       } else {
-        const brandItems = brands.map(b => ({ ...b, count: countByBrand(b.id), deletable: true }));
+        const brandItems = brands
+          .filter(b => normalize(b.name + ' ' + (b.aliases || []).join(' ')).includes(normalize(brandSearchQuery)))
+          .map(b => ({ ...b, count: countByBrand(b.id), deletable: true }));
         // Aktif filtre bos bir markadaysa o marka gizlenmesin
         const activeBrands = brandItems
           .filter(b => b.count > 0 || b.id === activeFilter)
@@ -1234,7 +1316,7 @@
         items = [
           ...specialsTop,
           ...activeBrands,
-          ...(showEmptyBrands ? emptyBrands : []),
+          ...(showEmptyBrands || brandSearchQuery ? emptyBrands : []),
           ...specialsBottom,
         ];
         specialsTopLength = specialsTop.length;
@@ -1243,26 +1325,7 @@
 
       const hoverCls = isDark() ? 'hover:bg-slate-800' : 'hover:bg-slate-50';
 
-      // Gorevlerde kisi listesinin ustune sabah bakisi icin Bugun/Geciken kisayollari
-      const taskShortcutsHtml = activeTab === 'tasks' ? [
-        { id: 'bugun',   name: '🔥 Bugün',   color: '#f43f5e', count: visibleTasks().filter(isDueToday).length },
-        { id: 'geciken', name: '⚠️ Geciken', color: '#f59e0b', count: visibleTasks().filter(isOverdue).length },
-      ].map(item => {
-        const active = taskViewFilter === item.id;
-        const color = displayColor(item.color);
-        const style = active ? `background:${hexToRgba(color, 0.14)};box-shadow:0 0 0 2px ${hexToRgba(color, 0.35)}` : '';
-        const textCls = active ? 'text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400';
-        const badgeStyle = active ? `background:${color};color:${contrastText(color)}` : '';
-        return `<div class="flex shrink-0 lg:shrink items-center gap-1">
-          <button type="button" data-task-shortcut="${item.id}" class="sidebar-item min-w-40 lg:min-w-0 lg:flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-left ${active ? 'active' : hoverCls}" style="${style}">
-            <span class="flex-1 text-sm font-medium truncate ${textCls}">${item.name}</span>
-            <span class="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${active ? '' : 'badge-inactive'}" style="${badgeStyle}">${item.count}</span>
-          </button>
-          <span class="hidden lg:block w-7 shrink-0"></span>
-        </div>`;
-      }).join('') + `<div class="hidden lg:block h-px bg-slate-100 dark:bg-slate-800 my-1.5 mx-1"></div>` : '';
-
-      const emptyToggleHtml = emptyBrands.length ? `<div class="flex shrink-0 lg:shrink items-center">
+      const emptyToggleHtml = emptyBrands.length && !brandSearchQuery ? `<div class="flex shrink-0 lg:shrink items-center">
         <button type="button" data-toggle-empty class="sidebar-item min-w-40 lg:min-w-0 lg:flex-1 flex items-center gap-2 px-3 py-2 rounded-xl text-left text-xs font-semibold text-slate-400 ${hoverCls}">
           <svg class="w-3 h-3 shrink-0 transition-transform ${showEmptyBrands ? 'rotate-90' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
           Boş markalar (${emptyBrands.length})
@@ -1283,18 +1346,19 @@
             <span class="flex-1 text-sm font-medium truncate ${textCls}">${escapeHtml(item.name)}</span>
             <span class="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${active ? '' : 'badge-inactive'}" style="${badgeStyle}">${item.count}</span>
           </button>
-          ${item.deletable ? `<button type="button" data-edit-brand="${item.id}" class="shrink-0 p-1.5 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 lg:opacity-0 group-hover/row:lg:opacity-100 transition" title="Markayı düzenle">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-          </button>
-          <button type="button" data-delete-brand="${item.id}" class="shrink-0 p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 lg:opacity-0 group-hover/row:lg:opacity-100 transition" title="Markayı sil">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-          </button>` : '<span class="hidden lg:block w-7 shrink-0"></span>'}
+          ${item.deletable ? `<details class="relative shrink-0 lg:opacity-0 group-hover/row:lg:opacity-100 transition-opacity">
+            <summary class="list-none cursor-pointer p-1.5 rounded-lg text-slate-300 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200" title="Marka işlemleri"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></summary>
+            <div class="absolute right-0 top-full z-20 mt-1 w-32 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+              <button type="button" data-edit-brand="${item.id}" class="w-full rounded-md px-2 py-1.5 text-left text-xs font-medium text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800">Düzenle</button>
+              <button type="button" data-delete-brand="${item.id}" class="w-full rounded-md px-2 py-1.5 text-left text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30">Sil</button>
+            </div>
+          </details>` : '<span class="hidden lg:block w-7 shrink-0"></span>'}
         </div>`;
       });
 
       // Bos markalar toggle'i aktif markalarin hemen arkasina girer
       const toggleIndex = specialsTopLength + activeBrandCount;
-      brandNav.innerHTML = taskShortcutsHtml + [...rows.slice(0, toggleIndex), emptyToggleHtml, ...rows.slice(toggleIndex)].join('');
+      brandNav.innerHTML = [...rows.slice(0, toggleIndex), emptyToggleHtml, ...rows.slice(toggleIndex)].join('');
     }
 
     function brandIdsKey(ids) {
@@ -1522,6 +1586,7 @@
       if (activeTab === 'pano') renderNotes();
       else if (activeTab === 'tasks') renderTasks();
       else renderDocs();
+      if (taskDetailId) renderTaskDetailPanel();
     }
 
     function renderTabNav() {
@@ -1641,6 +1706,26 @@
       }
     }
 
+    function yesterdayStr() {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    async function setTaskDuePreset(taskId, preset) {
+      const dueDate = preset === 'bugun' ? todayStr() : preset === 'geciken' ? yesterdayStr() : null;
+      if (newTaskDraft && newTaskDraft.id === taskId) {
+        newTaskDraft.dueDate = dueDate;
+        renderMain();
+        return;
+      }
+      try {
+        await updateDoc(doc(db, 'tasks', taskId), { dueDate, updatedAt: new Date().toISOString() });
+      } catch {
+        showToast('Tarih etiketi güncellenemedi');
+      }
+    }
+
     async function restoreArchivedTask(taskId) {
       const task = archivedTasks.find(t => t.id === taskId);
       if (!task) return;
@@ -1654,6 +1739,20 @@
       } catch {
         showToast('Görev geri yüklenemedi');
       }
+    }
+
+    async function archiveTaskNow(taskId) {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+      const { id, localDraft, ...data } = task;
+      try {
+        const batch = writeBatch(db);
+        batch.set(doc(db, 'tasksArchive', id), { ...data, archivedAt: new Date().toISOString() });
+        batch.delete(doc(db, 'tasks', id));
+        await batch.commit();
+        closeTaskDetail();
+        showToast('Görev arşivlendi');
+      } catch { showToast('Görev arşivlenemedi'); }
     }
 
     // Ayni e-posta her cihazda ayni rengi alir
@@ -1691,12 +1790,19 @@
     }
 
     function sortTasks(list) {
-      const order = { yapiliyor: 0, beklemede: 1, bitti: 2 };
+      const statusOrder = taskSortMode === 'status-done'
+        ? { bitti: 0, yapiliyor: 1, beklemede: 2 }
+        : { yapiliyor: 0, beklemede: 1, bitti: 2 };
       return [...list].sort((a, b) => {
-        const s = (order[a.status] ?? 0) - (order[b.status] ?? 0);
-        if (s !== 0) return s;
-        if (a.dueDate && b.dueDate && a.dueDate !== b.dueDate) return a.dueDate < b.dueDate ? -1 : 1;
-        if (!!a.dueDate !== !!b.dueDate) return a.dueDate ? -1 : 1;
+        if (a.localDraft !== b.localDraft) return a.localDraft ? -1 : 1;
+        if (taskSortMode === 'status-active' || taskSortMode === 'status-done') {
+          const statusDiff = (statusOrder[a.status] ?? 0) - (statusOrder[b.status] ?? 0);
+          if (statusDiff !== 0) return statusDiff;
+        }
+        if (taskSortMode === 'due-asc') {
+          if (a.dueDate && b.dueDate && a.dueDate !== b.dueDate) return a.dueDate < b.dueDate ? -1 : 1;
+          if (!!a.dueDate !== !!b.dueDate) return a.dueDate ? -1 : 1;
+        }
         return new Date(b.createdAt) - new Date(a.createdAt);
       });
     }
@@ -1751,6 +1857,15 @@
       return window.matchMedia('(max-width: 639px)').matches;
     }
 
+    function taskSortControlHtml() {
+      return `<label class="ml-auto inline-flex items-center gap-2 text-xs font-semibold text-slate-400">
+        <span class="hidden sm:inline">Sırala</span>
+        <select data-task-sort class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" title="Görev sıralaması">
+          ${TASK_SORT_MODES.map(mode => `<option value="${mode.id}" ${mode.id === taskSortMode ? 'selected' : ''}>${mode.name}</option>`).join('')}
+        </select>
+      </label>`;
+    }
+
     function renderTaskFilters() {
       taskFiltersEl.classList.toggle('hidden', activeTab !== 'tasks');
       taskFiltersEl.classList.toggle('flex', activeTab === 'tasks');
@@ -1770,11 +1885,11 @@
       // devre disi kalip her zaman duz kart listesine dusuldugu icin durum cipleri kalir.
       if (taskViewMode === 'board' && !isNarrowViewport()) {
         const counts = { all: pool.length, bugun: pool.filter(isDueToday).length, geciken: pool.filter(isOverdue).length, archive: archivedTasks.length };
-        const boardFilters = [...BOARD_DATE_FILTERS, { id: 'archive', name: 'Arşiv' }];
+        const boardFilters = BOARD_DATE_FILTERS;
         taskFiltersEl.innerHTML = boardFilters.map(f => {
           const active = taskViewFilter === f.id;
           return `<button type="button" data-task-filter="${f.id}" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition ${chipCls(active)}">${f.name} · ${counts[f.id]}</button>`;
-        }).join('');
+        }).join('') + taskOverflowFilterHtml(counts, chipCls) + taskSortControlHtml();
         return;
       }
 
@@ -1788,10 +1903,20 @@
         archive: archivedTasks.length,
       };
 
-      taskFiltersEl.innerHTML = TASK_FILTERS.map(f => {
+      taskFiltersEl.innerHTML = TASK_FILTERS.filter(f => f.id !== 'archive').map(f => {
         const active = taskViewFilter === f.id;
         return `<button type="button" data-task-filter="${f.id}" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition ${chipCls(active)}">${f.name} · ${counts[f.id]}</button>`;
-      }).join('');
+      }).join('') + taskOverflowFilterHtml(counts, chipCls) + taskSortControlHtml();
+    }
+
+    function taskOverflowFilterHtml(counts, chipCls) {
+      const active = taskViewFilter === 'archive';
+      return `<details class="relative">
+        <summary class="list-none cursor-pointer px-2.5 py-1.5 rounded-lg text-xs font-semibold transition ${chipCls(active)}" title="Diğer filtreler">•••</summary>
+        <div class="absolute left-0 top-full z-20 mt-1 w-32 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+          <button type="button" data-task-filter="archive" class="w-full rounded-md px-2 py-1.5 text-left text-xs font-semibold ${active ? 'accent-bg text-white' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'}">Arşiv · ${counts.archive}</button>
+        </div>
+      </details>`;
     }
 
     // Genisletilmis aciklama hucresinde linkler tiklanabilir cipler olarak listelenir
@@ -1826,10 +1951,9 @@
           <p class="mt-1 text-[10px] text-slate-400">Enter kaydeder · Esc iptal</p>
         </div>`;
       }
-      const done = task.status === 'bitti';
-      return `<div data-cell="task-title" data-id="${task.id}" class="px-3 py-2 cursor-text min-w-0" title="${escapeHtml(task.text || 'Düzenlemek için tıkla').replace(/"/g, '&quot;')}">
+      return `<div data-task-open="${task.id}" class="px-3 py-2 cursor-pointer min-w-0" title="Görev detayını aç">
         ${task.text
-          ? `<p class="text-sm font-medium text-slate-700 dark:text-slate-200 break-words leading-snug line-clamp-2 ${done ? 'task-done-text' : ''}">${escapeHtml(task.text)}</p>`
+          ? `<p class="text-sm font-medium text-slate-700 dark:text-slate-200 break-words leading-snug line-clamp-2">${escapeHtml(task.text)}</p>`
           : '<span class="text-sm text-slate-300 dark:text-slate-600">Görev adı yaz…</span>'}
       </div>`;
     }
@@ -1837,8 +1961,16 @@
     function renderTaskDescCell(task) {
       if (cellEdit && cellEdit.kind === 'task-desc' && cellEdit.id === task.id) {
         return `<div class="px-3 py-2">
-          <textarea data-cell-input rows="3" class="${CELL_INPUT_CLS} resize-none" placeholder="Detayları yaz…"></textarea>
-          ${linkChipsRow(task.desc)}
+          <div class="rich-toolbar flex flex-wrap items-center gap-1 rounded-t-lg border border-b-0 border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
+            <button type="button" data-rich-command="bold" class="rounded-md px-2 py-1 text-xs font-bold text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700" title="Kalın">B</button>
+            <button type="button" data-rich-command="italic" class="rounded-md px-2 py-1 text-xs italic text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700" title="İtalik">I</button>
+            <button type="button" data-rich-command="underline" class="rounded-md px-2 py-1 text-xs underline text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700" title="Altı çizili">U</button>
+            <span class="mx-0.5 h-5 w-px bg-slate-200 dark:bg-slate-700"></span>
+            <button type="button" data-rich-command="insertUnorderedList" class="rounded-md px-2 py-1 text-xs text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700" title="Madde işaretli liste">• Liste</button>
+            <button type="button" data-rich-command="insertOrderedList" class="rounded-md px-2 py-1 text-xs text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-700" title="Numaralı liste">1. Liste</button>
+            <button type="button" data-rich-link class="rounded-md px-2 py-1 text-xs font-semibold text-violet-600 hover:bg-white dark:text-violet-300 dark:hover:bg-slate-700" title="Bağlantı ekle">🔗 Link</button>
+          </div>
+          <div data-rich-editor contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Video altyazısı, bağlantılar ve görev detaylarını yaz…" class="rich-editor rounded-b-lg border accent-border-input bg-white px-3 py-2 text-sm text-slate-700 accent-ring-input dark:bg-slate-900 dark:text-slate-200"></div>
           <div class="mt-1.5 flex items-center gap-2">
             <button type="button" data-save-cell class="${CELL_BTN_SAVE}">Kaydet</button>
             <button type="button" data-cancel-cell class="${CELL_BTN_CANCEL}">İptal</button>
@@ -1846,21 +1978,56 @@
           </div>
         </div>`;
       }
-      const desc = (task.desc || '').trim();
+      const desc = (task.desc || (task.descHtml ? richTextToPlain(task.descHtml) : '')).trim();
       // Kisaltilmis hucrede tam metni fare-ustu ipucu olarak goster
       const descTip = desc ? escapeHtml(desc).replace(/"/g, '&quot;') : 'Detayları görmek ve yazmak için tıkla';
-      return `<div data-cell="task-desc" data-id="${task.id}" class="px-3 py-2 cursor-text min-w-0" title="${descTip}">
+      return `<div data-task-open="${task.id}" class="px-3 py-2 cursor-pointer min-w-0" title="${descTip}">
         ${desc
-          ? `<div class="text-sm text-slate-500 dark:text-slate-400 truncate">${linkify(desc.split('\n')[0])}</div>`
+          ? `<div class="text-sm text-slate-500 dark:text-slate-400 truncate">${escapeHtml(desc.replace(/\n/g, ' '))}</div>`
           : '<span class="text-sm text-slate-300 dark:text-slate-600">Açıklama ekle…</span>'}
       </div>`;
     }
 
+    function taskHistory(task) {
+      return Array.isArray(task.history) ? task.history : [];
+    }
+
+    function renderTaskDetailPanel() {
+      const task = [...tasks, ...archivedTasks].find(t => t.id === taskDetailId);
+      if (!task) { closeTaskDetail(); return; }
+      const links = ((task.desc || '') + ' ' + (task.descHtml || '')).match(URL_RE) || [];
+      const comments = Array.isArray(task.comments) ? task.comments : [];
+      const history = taskHistory(task);
+      taskDetailContent.innerHTML = `<div class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-700 dark:bg-[#111113]">
+          <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">Görev detayı</p>
+          <button type="button" data-task-detail-close class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Kapat">✕</button>
+        </div>
+        <form data-task-detail-form="${task.id}" class="space-y-5 p-5">
+          <input name="title" value="${escapeHtml(task.text || '')}" placeholder="Görev adı" class="w-full rounded-lg border accent-border-input bg-white px-3 py-2 text-lg font-semibold text-slate-800 dark:bg-slate-900 dark:text-slate-100" />
+          <div><p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Açıklama</p>
+            <div class="rich-toolbar flex flex-wrap gap-1 rounded-t-lg border border-b-0 border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800"><button type="button" data-rich-command="bold" class="rounded px-2 py-1 text-xs font-bold">B</button><button type="button" data-rich-command="italic" class="rounded px-2 py-1 text-xs italic">I</button><button type="button" data-rich-command="insertUnorderedList" class="rounded px-2 py-1 text-xs">• Liste</button><button type="button" data-rich-link class="rounded px-2 py-1 text-xs">🔗 Link</button></div>
+            <div data-rich-editor contenteditable="true" class="rich-editor rounded-b-lg border accent-border-input bg-white px-3 py-2 text-sm text-slate-700 dark:bg-slate-900 dark:text-slate-200">${taskDescriptionEditorHtml(task)}</div>
+          </div>
+          <div class="grid grid-cols-2 gap-3"><label class="text-xs font-semibold text-slate-500">Durum<select name="status" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">${TASK_STATUSES.map(s => `<option value="${s.id}" ${task.status === s.id ? 'selected' : ''}>${s.name}</option>`).join('')}</select></label><label class="text-xs font-semibold text-slate-500">Bitiş tarihi<input name="dueDate" type="date" value="${task.dueDate || ''}" class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" /></label></div>
+          <div><p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Kişiler</p><div class="flex flex-wrap gap-2">${team.map(m => `<label class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1 text-xs dark:border-slate-700"><input name="assignee" type="checkbox" value="${escapeHtml(m.id)}" ${(task.assigneeIds || []).includes(m.id) ? 'checked' : ''}>${escapeHtml(m.name || m.email || m.id)}</label>`).join('') || '<span class="text-xs text-slate-400">Onaylı kullanıcı yok</span>'}</div></div>
+          <div>${links.length ? `<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Bağlantılar</p>${linkChipsRow(links.join(' '))}` : ''}</div>
+          <button class="w-full rounded-lg accent-bg px-3 py-2 text-sm font-semibold text-white">Kaydet</button>
+        </form>
+        <section class="border-t border-slate-200 p-5 dark:border-slate-700"><p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Yorumlar</p><div class="space-y-2">${comments.map(c => `<div class="rounded-lg bg-slate-50 p-2 text-sm dark:bg-slate-800"><b>${escapeHtml(c.author || 'Ekip')}</b><p>${escapeHtml(c.text || '')}</p></div>`).join('') || '<p class="text-sm text-slate-400">Henüz yorum yok.</p>'}</div><form data-task-comment="${task.id}" class="mt-3 flex gap-2"><input name="comment" class="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900" placeholder="Yorum yaz…" /><button class="rounded-lg accent-bg px-3 text-sm font-semibold text-white">Gönder</button></form></section>
+        <section class="border-t border-slate-200 p-5 dark:border-slate-700"><p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Değişiklik geçmişi</p>${history.length ? `<ul class="space-y-1 text-xs text-slate-500 dark:text-slate-400">${history.slice(-10).reverse().map(h => `<li>${escapeHtml(h.text || '')} · ${formatDate(h.at)}</li>`).join('')}</ul>` : '<p class="text-sm text-slate-400">Bu görev için henüz kayıt yok.</p>'}</section>
+        <div class="flex gap-2 border-t border-slate-200 p-5 dark:border-slate-700"><button type="button" data-task-detail-archive="${task.id}" class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300">Arşivle</button><button type="button" data-task-delete="${task.id}" class="rounded-lg px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30">Sil</button></div>`;
+      taskDetailPanel.classList.remove('hidden');
+    }
+
+    function openTaskDetail(id) { taskDetailId = id; renderTaskDetailPanel(); }
+    function closeTaskDetail() { taskDetailId = null; taskDetailPanel.classList.add('hidden'); }
+
     function renderTaskStatusCell(task) {
       const st = taskStatusMeta(task.status);
       const c = displayColor(st.color);
+      const dueState = isDueToday(task) ? 'bugun' : isOverdue(task) ? 'geciken' : null;
       const open = openMenuKey === 's-' + task.id;
-      const panel = open ? `<div data-floating-menu class="note-menu fixed z-40 w-40 rounded-xl border border-slate-200 bg-white shadow-lg py-1 dark:border-slate-700">
+      const panel = open ? `<div data-floating-menu class="note-menu fixed z-40 w-52 rounded-xl border border-slate-200 bg-white shadow-lg py-1 dark:border-slate-700">
         ${TASK_STATUSES.map(s => {
           const sc = displayColor(s.color);
           const sel = s.id === task.status;
@@ -1870,12 +2037,25 @@
             ${sel ? '<svg class="w-4 h-4 shrink-0 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>' : ''}
           </button>`;
         }).join('')}
+        <div class="mx-2 my-1 border-t border-slate-100 dark:border-slate-700"></div>
+        <p class="px-3.5 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Tarih etiketi</p>
+        <button type="button" data-due-option="${task.id}|bugun" class="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-left hover:bg-slate-50 dark:hover:bg-slate-700/50">
+          <span class="text-base">🔥</span><span class="flex-1">Bugün</span>${dueState === 'bugun' ? '<span class="text-violet-500">✓</span>' : ''}
+        </button>
+        <button type="button" data-due-option="${task.id}|geciken" class="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-left hover:bg-slate-50 dark:hover:bg-slate-700/50">
+          <span class="text-base">⚠️</span><span class="flex-1">Geciken</span>${dueState === 'geciken' ? '<span class="text-violet-500">✓</span>' : ''}
+        </button>
+        <button type="button" data-due-option="${task.id}|clear" class="w-full px-3.5 py-2 text-xs font-medium text-left text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50">Tarih etiketini kaldır</button>
       </div>` : '';
       return `<div class="relative px-3 py-2">
-        <button type="button" data-status-cell="${task.id}" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold" style="background:${hexToRgba(c, 0.12)};color:${c}" title="Durumu seç">
-          <span class="w-1.5 h-1.5 rounded-full" style="background:${c}"></span>${st.name}
-          <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
-        </button>
+        <div class="flex flex-wrap items-center gap-1">
+          <button type="button" data-status-cell="${task.id}" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold" style="background:${hexToRgba(c, 0.12)};color:${c}" title="Durum veya tarih etiketi seç">
+            <span class="w-1.5 h-1.5 rounded-full" style="background:${c}"></span>${st.name}
+            <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          ${dueState === 'bugun' ? '<span class="rounded-md bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-bold text-rose-500">🔥 Bugün</span>' : ''}
+          ${dueState === 'geciken' ? '<span class="rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-500">⚠️ Geciken</span>' : ''}
+        </div>
         ${panel}
       </div>`;
     }
@@ -2251,8 +2431,10 @@
         } else if (kind === 'task-desc') {
           const t = tasks.find(x => x.id === id);
           if (!t) return false;
+          const descHtml = autoLinkRichHtml(cellEdit.draft || '');
           await updateDoc(doc(db, "tasks", id), {
-            desc: draft,
+            desc: richTextToPlain(descHtml),
+            descHtml,
             updatedAt: new Date().toISOString()
           });
         } else if (kind === 'doc-title') {
@@ -2302,6 +2484,12 @@
     // Yeniden render (senkron guncellemesi) o an yazilan taslagi silmesin
     function captureCellDraft() {
       if (!cellEdit) return;
+      const richEditor = visibleQuery('[data-rich-editor]');
+      if (richEditor) {
+        cellEdit.draft = richEditor.innerHTML;
+        cellEdit.hadFocus = document.activeElement === richEditor;
+        return;
+      }
       const input = visibleQuery('[data-cell-input]');
       if (input) {
         cellEdit.draft = input.value;
@@ -2318,9 +2506,11 @@
 
     function focusCellInput() {
       if (!cellEdit) return;
+      const richEditor = visibleQuery('[data-rich-editor]');
       const input = visibleQuery('[data-cell-input]');
       const titleInput = visibleQuery('[data-cell-input-title]');
       if (titleInput) titleInput.value = cellEdit.draftTitle || '';
+      if (richEditor) richEditor.innerHTML = sanitizeRichHtml(cellEdit.draft || '');
       if (input) {
         input.value = cellEdit.draft || '';
         if (input.tagName === 'TEXTAREA') {
@@ -2330,6 +2520,14 @@
       }
       if (cellEdit.focusTitle && titleInput) {
         titleInput.focus();
+      } else if (cellEdit.hadFocus && richEditor) {
+        richEditor.focus();
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(richEditor);
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
       } else if (cellEdit.hadFocus && input) {
         input.focus();
         if (cellEdit.selStart != null) {
@@ -2400,7 +2598,7 @@
       // Kisi filtresindeyken eklenen gorev o kisiye atanir
       const assigneeIds = (taskFilter !== 'all' && taskFilter !== 'unassigned') ? [taskFilter] : [];
       const dueDate = taskViewFilter === 'bugun' ? todayStr()
-        : taskViewFilter === 'geciken' ? (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })()
+        : taskViewFilter === 'geciken' ? yesterdayStr()
         : null;
       newTaskDraft = {
         id, text: '', desc: '', assigneeIds, status, dueDate,
@@ -2450,6 +2648,37 @@
     }
 
     async function handleNotesClick(e) {
+      const richCommand = e.target.closest('[data-rich-command]');
+      if (richCommand) {
+        const editor = visibleQuery('[data-rich-editor]');
+        if (editor) {
+          editor.focus();
+          document.execCommand(richCommand.dataset.richCommand, false);
+          cellEdit.draft = editor.innerHTML;
+        }
+        return;
+      }
+
+      const richLink = e.target.closest('[data-rich-link]');
+      if (richLink) {
+        const editor = visibleQuery('[data-rich-editor]');
+        if (!editor) return;
+        const rawUrl = window.prompt('Bağlantı adresi', 'https://');
+        if (!rawUrl) return;
+        const normalizedUrl = /^https?:\/\//i.test(rawUrl.trim()) ? rawUrl.trim() : 'https://' + rawUrl.trim();
+        const safeUrl = safeExternalUrl(normalizedUrl);
+        if (!safeUrl) { showToast('Geçerli bir bağlantı gir'); return; }
+        editor.focus();
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed && editor.contains(selection.anchorNode)) {
+          document.execCommand('createLink', false, safeUrl);
+        } else {
+          document.execCommand('insertHTML', false, `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(safeUrl)}</a>`);
+        }
+        cellEdit.draft = editor.innerHTML;
+        return;
+      }
+
       const menuBtn = e.target.closest('[data-menu]');
       if (menuBtn) {
         const panel = notesContainer.querySelector(`[data-menu-panel="${menuBtn.dataset.menu}"]`);
@@ -2548,6 +2777,12 @@
         return;
       }
 
+      const taskOpen = e.target.closest('[data-task-open]');
+      if (taskOpen && !e.target.closest('a')) {
+        openTaskDetail(taskOpen.dataset.taskOpen);
+        return;
+      }
+
       // Tablo hucreleri: tiklaninca satir ici duzenlemeye gecer (linkler haric)
       const cellBtn = e.target.closest('[data-cell]');
       if (cellBtn && !e.target.closest('a')) {
@@ -2559,7 +2794,7 @@
           if (!await saveCellEdit()) return;
         }
         if (kind === 'task-title') { const t = tasks.find(x => x.id === id); if (t) openCellEdit('task-title', id, t.text || ''); }
-        else if (kind === 'task-desc') { const t = tasks.find(x => x.id === id); if (t) openCellEdit('task-desc', id, t.desc || ''); }
+        else if (kind === 'task-desc') { const t = tasks.find(x => x.id === id); if (t) openCellEdit('task-desc', id, taskDescriptionEditorHtml(t)); }
         else if (kind === 'doc-title') { const d = docs.find(x => x.id === id); if (d) openCellEdit('doc-title', id, d.title || ''); }
         else if (kind === 'doc-body') { const d = docs.find(x => x.id === id); if (d) openCellEdit('doc-body', id, d.body || ''); }
         return;
@@ -2617,6 +2852,17 @@
         const taskId = statusOpt.dataset.statusOption.slice(0, sep);
         const statusId = statusOpt.dataset.statusOption.slice(sep + 1);
         await setTaskStatus(taskId, statusId);
+        openMenuKey = null;
+        renderMain();
+        return;
+      }
+
+      const dueOpt = e.target.closest('[data-due-option]');
+      if (dueOpt) {
+        const sep = dueOpt.dataset.dueOption.indexOf('|');
+        const taskId = dueOpt.dataset.dueOption.slice(0, sep);
+        const preset = dueOpt.dataset.dueOption.slice(sep + 1);
+        await setTaskDuePreset(taskId, preset);
         openMenuKey = null;
         renderMain();
         return;
@@ -2849,16 +3095,6 @@
       }
       const del = e.target.closest('[data-delete-brand]');
       if (del) { e.stopPropagation(); deleteBrand(del.dataset.deleteBrand); return; }
-      const shortcut = e.target.closest('[data-task-shortcut]');
-      if (shortcut) {
-        taskFilter = 'all';
-        taskViewFilter = shortcut.dataset.taskShortcut;
-        localStorage.setItem(TASK_PERSON_FILTER_KEY, taskFilter);
-        localStorage.setItem(TASK_VIEW_FILTER_KEY, taskViewFilter);
-        renderSidebar();
-        renderMain();
-        return;
-      }
       const filter = e.target.closest('[data-filter]');
       if (filter) {
         // Gorevlerde sol liste kisi bazli (taskFilter), diger sekmelerde marka bazli (activeFilter)
@@ -2871,6 +3107,110 @@
         renderSidebar();
         renderMain();
       }
+    });
+
+    brandSearch.addEventListener('input', () => {
+      brandSearchQuery = brandSearch.value;
+      renderSidebar();
+    });
+
+    taskDetailPanel.addEventListener('click', e => {
+      if (e.target.closest('[data-task-detail-close]')) { closeTaskDetail(); return; }
+      if (e.target.closest('[data-task-detail-archive]')) { archiveTaskNow(e.target.closest('[data-task-detail-archive]').dataset.taskDetailArchive); return; }
+      if (e.target.closest('[data-task-delete]')) { closeTaskDetail(); scheduleDelete('tasks', e.target.closest('[data-task-delete]').dataset.taskDelete, 'Görev silindi'); return; }
+      const command = e.target.closest('[data-rich-command]');
+      if (command) {
+        e.preventDefault();
+        const editor = taskDetailPanel.querySelector('[data-rich-editor]');
+        editor?.focus();
+        document.execCommand(command.dataset.richCommand, false);
+        return;
+      }
+      if (e.target.closest('[data-rich-link]')) {
+        e.preventDefault();
+        const raw = window.prompt('Bağlantı adresi', 'https://');
+        const editor = taskDetailPanel.querySelector('[data-rich-editor]');
+        if (!raw || !editor) return;
+        const url = safeExternalUrl(/^https?:\/\//i.test(raw.trim()) ? raw.trim() : 'https://' + raw.trim());
+        if (!url) { showToast('Geçerli bir bağlantı gir'); return; }
+        editor.focus();
+        document.execCommand('createLink', false, url);
+      }
+    });
+    taskDetailPanel.addEventListener('mousedown', e => {
+      if (e.target.closest('[data-rich-command], [data-rich-link]')) e.preventDefault();
+    });
+
+    taskDetailPanel.addEventListener('submit', async e => {
+      const form = e.target;
+      if (form.matches('[data-task-detail-form]')) {
+        e.preventDefault();
+        const task = tasks.find(t => t.id === form.dataset.taskDetailForm);
+        const title = form.elements.title.value.trim();
+        if (!task || !title) { showToast('Görev adı boş olamaz'); return; }
+        const descHtml = autoLinkRichHtml(taskDetailPanel.querySelector('[data-rich-editor]').innerHTML);
+        const assigneeIds = [...form.querySelectorAll('input[name="assignee"]:checked')].map(input => input.value);
+        const history = [...taskHistory(task), { text: 'Görev detayları güncellendi', at: new Date().toISOString() }].slice(-50); // ponytail: son 50 kayıt; denetim ihtiyacı büyürse alt koleksiyona taşı.
+        try {
+          await updateDoc(doc(db, 'tasks', task.id), { text: title, desc: richTextToPlain(descHtml), descHtml, status: form.elements.status.value, dueDate: form.elements.dueDate.value || null, assigneeIds, history, updatedAt: new Date().toISOString() });
+          showToast('Görev kaydedildi');
+        } catch { showToast('Görev kaydedilemedi'); }
+        return;
+      }
+      if (form.matches('[data-task-comment]')) {
+        e.preventDefault();
+        const task = tasks.find(t => t.id === form.dataset.taskComment);
+        const text = form.elements.comment.value.trim();
+        if (!task || !text) return;
+        const comment = { text, author: memberName(currentUserEmail || ''), at: new Date().toISOString() };
+        try {
+          await updateDoc(doc(db, 'tasks', task.id), { comments: [...(task.comments || []), comment].slice(-50), updatedAt: new Date().toISOString() });
+        } catch { showToast('Yorum kaydedilemedi'); }
+      }
+    });
+
+    function mentionQuery(target) {
+      if (target.matches('input, textarea')) return target.value.slice(0, target.selectionStart).match(/@([^\s@]*)$/)?.[1];
+      const selection = window.getSelection();
+      return selection?.anchorNode ? selection.anchorNode.textContent.slice(0, selection.anchorOffset).match(/@([^\s@]*)$/)?.[1] : undefined;
+    }
+
+    function hideMentionMenu() { mentionTarget = null; mentionMenu.classList.add('hidden'); }
+
+    function showMentionMenu(target) {
+      const query = mentionQuery(target);
+      if (query === undefined) { hideMentionMenu(); return; }
+      const matches = team.filter(m => normalize((m.name || '') + ' ' + (m.email || m.id || '')).includes(normalize(query))).slice(0, 6);
+      if (!matches.length) { hideMentionMenu(); return; }
+      mentionTarget = target;
+      mentionMenu.innerHTML = matches.map(m => `<button type="button" data-mention="${escapeHtml(m.name || m.email || m.id)}" class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-slate-50 dark:hover:bg-slate-800">${avatarHtml(m.id, 18)}<span>${escapeHtml(m.name || m.email || m.id)}</span></button>`).join('');
+      const r = target.getBoundingClientRect();
+      mentionMenu.style.left = Math.max(8, r.left) + 'px';
+      mentionMenu.style.top = Math.min(window.innerHeight - 8, r.bottom + 4) + 'px';
+      mentionMenu.classList.remove('hidden');
+    }
+
+    document.addEventListener('input', e => {
+      if (e.target.matches('input, textarea, [contenteditable="true"]')) showMentionMenu(e.target);
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') hideMentionMenu(); });
+    mentionMenu.addEventListener('click', e => {
+      const btn = e.target.closest('[data-mention]');
+      if (!btn || !mentionTarget) return;
+      const target = mentionTarget;
+      const label = '@' + btn.dataset.mention + ' ';
+      if (target.matches('input, textarea')) {
+        const before = target.value.slice(0, target.selectionStart).replace(/@[^\s@]*$/, label);
+        target.value = before + target.value.slice(target.selectionStart);
+        target.selectionStart = target.selectionEnd = before.length;
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+      } else {
+        const query = mentionQuery(target) || '';
+        for (let i = 0; i <= query.length; i++) document.execCommand('delete', false);
+        document.execCommand('insertText', false, label);
+      }
+      hideMentionMenu();
+      target.focus();
     });
 
     tabNav.addEventListener('click', async e => {
@@ -2886,13 +3226,31 @@
       renderMain();
     });
 
+    taskFiltersEl.addEventListener('change', e => {
+      const select = e.target.closest('[data-task-sort]');
+      if (!select || !TASK_SORT_MODES.some(mode => mode.id === select.value)) return;
+      taskSortMode = select.value;
+      localStorage.setItem(TASK_SORT_KEY, taskSortMode);
+      renderMain();
+    });
 
+    notesContainer.addEventListener('mousedown', e => {
+      if (e.target.closest('[data-rich-command], [data-rich-link]')) e.preventDefault();
+    });
     notesContainer.addEventListener('click', handleNotesClick);
 
     notesContainer.addEventListener('keydown', e => {
-      const cellInput = e.target.closest('[data-cell-input], [data-cell-input-title]');
+      const cellInput = e.target.closest('[data-cell-input], [data-cell-input-title], [data-rich-editor]');
       if (cellInput) {
         if (e.key === 'Escape') { e.preventDefault(); cancelCellEdit(); return; }
+        const isRichEditor = cellInput.hasAttribute('data-rich-editor');
+        if (isRichEditor) {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            saveCellEdit();
+          }
+          return;
+        }
         const isTextarea = cellInput.tagName === 'TEXTAREA';
         if (e.key === 'Enter' && !isTextarea) {
           // Yeni bilgi notunda basliktan Enter ile govdeye gecilir
@@ -2938,6 +3296,12 @@
     // Aciklama kutusu yazdikca buyur; ayrica yazilan metni aninda cellEdit'e
     // yansitir ki Kaydet'e basildiginda guncel deger yazilsin (bayat draft olmasin)
     notesContainer.addEventListener('input', e => {
+      const richEditor = e.target.closest('[data-rich-editor]');
+      if (richEditor && cellEdit) {
+        cellEdit.draft = richEditor.innerHTML;
+        cellEdit.hadFocus = true;
+        return;
+      }
       const cellInput = e.target.closest('[data-cell-input], [data-cell-input-title]');
       if (cellInput && cellEdit) {
         if (cellInput.hasAttribute('data-cell-input-title')) cellEdit.draftTitle = cellInput.value;
@@ -2980,18 +3344,9 @@
       renderMain();
     });
 
-    accentToggle.addEventListener('click', (e) => {
-      e.stopPropagation();
-      accentPanel.classList.toggle('hidden');
-    });
     accentPanel.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-accent]');
       if (btn) applyAccent(btn.dataset.accent);
-    });
-    document.addEventListener('click', (e) => {
-      if (!accentPanel.classList.contains('hidden') && !e.target.closest('#accent-panel') && !e.target.closest('#accent-toggle')) {
-        accentPanel.classList.add('hidden');
-      }
     });
 
     searchInput.addEventListener('input', () => {
