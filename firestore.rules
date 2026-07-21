@@ -40,10 +40,27 @@ service cloud.firestore {
       allow read, write: if isApproved();
     }
 
+    // Gorevler sekmesi
+    match /tasks/{taskId} {
+      allow read, write: if isApproved();
+    }
+
+    // Bilgi notlari (Notlar sekmesi)
+    match /docs/{docId} {
+      allow read, write: if isApproved();
+    }
+
+    // 30 gunden eski "Bitti" gorevler buraya tasinir (kota sigortasi)
+    match /tasksArchive/{taskId} {
+      allow read, write: if isApproved();
+    }
+
     match /allowedUsers/{email} {
       // Herkes yalnizca kendi onay durumunu okuyabilir
       allow get: if isSignedIn() && userEmail() == email;
-      allow read, write: if isAdmin();
+      // Onayli kullanicilar gorev atamak icin ekip listesini gorebilir
+      allow read: if isApproved();
+      allow write: if isAdmin();
     }
 
     match /pendingUsers/{email} {

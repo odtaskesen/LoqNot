@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>LoqNot — Sosyaloq Ajansı</title>
+  <meta name="description" content="Sosyaloq Ajansı için marka bazlı içerik-ilham panosu: notlar, görevler ve bilgi notları ekiple gerçek zamanlı senkronize edilir." />
+  <meta name="robots" content="noindex, nofollow" />
   <meta name="theme-color" content="#050505" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="LoqNot" />
@@ -11,6 +13,9 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icons/icon-180.png" />
   <link rel="icon" type="image/png" href="./icons/icon-192.png" />
+  <link rel="preconnect" href="https://www.gstatic.com" />
+  <link rel="preconnect" href="https://firestore.googleapis.com" />
+  <link rel="preconnect" href="https://identitytoolkit.googleapis.com" />
   <script>
     (function () {
       const theme = localStorage.getItem('loqnot-theme-v1');
@@ -81,12 +86,36 @@
     .view-btn { transition: all 0.15s ease; }
     .compose-card { transition: border-color 0.2s ease, box-shadow 0.2s ease; }
     .compose-card:focus-within {
-      border-color: rgba(124,58,237,0.55) !important;
-      box-shadow: 0 0 0 3px rgba(124,58,237,0.12) !important;
+      border-color: color-mix(in srgb, var(--accent-600) 55%, transparent) !important;
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-600) 12%, transparent) !important;
     }
     .dark .compose-card:focus-within {
-      border-color: #7c3aed !important;
-      box-shadow: 0 0 0 3px rgba(124,58,237,0.25) !important;
+      border-color: var(--accent-600) !important;
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-600) 25%, transparent) !important;
+    }
+    /* Vurgu rengi: varsayilan mor, ayarlar panelinden degistirilebilir (bkz. applyAccent) */
+    :root {
+      --accent-50: #f5f3ff; --accent-100: #ede9fe; --accent-300: #c4b5fd;
+      --accent-500: #8b5cf6; --accent-600: #7c3aed; --accent-700: #6d28d9;
+      --accent-900: #4c1d95; --accent-950: #2e1065;
+    }
+    .accent-bg { background-color: var(--accent-600) !important; }
+    .accent-bg-hover-light:hover { background-color: var(--accent-500) !important; }
+    .accent-bg-hover-dark:hover { background-color: var(--accent-700) !important; }
+    .accent-border-input { border-color: var(--accent-300) !important; }
+    .dark .accent-border-input { border-color: var(--accent-600) !important; }
+    .accent-ring-input:focus { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-500) 22%, transparent) !important; }
+    .dark .accent-ring-input:focus { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-900) 55%, transparent) !important; }
+    .accent-promo-btn {
+      border-color: color-mix(in srgb, var(--accent-500) 45%, transparent) !important;
+      background: color-mix(in srgb, var(--accent-500) 12%, white) !important;
+      color: var(--accent-700) !important;
+    }
+    .accent-promo-btn:hover { background: color-mix(in srgb, var(--accent-500) 20%, white) !important; }
+    .dark .accent-promo-btn {
+      border-color: color-mix(in srgb, var(--accent-500) 35%, transparent) !important;
+      background: color-mix(in srgb, var(--accent-900) 45%, transparent) !important;
+      color: var(--accent-100) !important;
     }
     #note-input { min-height: 106px; max-height: 240px; overflow-y: auto; }
     #brand-nav { scrollbar-width: none; }
@@ -105,7 +134,7 @@
     .dark textarea,
     .dark #theme-toggle { background: #0b0b0d !important; border-color: #2a2a2e !important; }
     .dark input:focus,
-    .dark textarea:focus { background: #101012 !important; border-color: #7c3aed !important; }
+    .dark textarea:focus { background: #101012 !important; border-color: var(--accent-600) !important; }
     .dark .sidebar-item:hover { background: #161618 !important; }
     .dark .note-menu { background: #18181b !important; border-color: #2a2a2e !important; }
     .note-archived { opacity: 0.72; }
@@ -125,6 +154,10 @@
       text-decoration-color: rgba(244,244,245,0.88);
     }
     article.note-card { border-left: 3px solid var(--spine, #94a3b8) !important; }
+    .tab-btn { transition: all 0.15s ease; }
+    .dark #tab-nav { background: #0b0b0d !important; border-color: #2a2a2e !important; }
+    .task-done-text { text-decoration: line-through; opacity: 0.65; }
+    .dark input[type="date"] { color-scheme: dark; }
   </style>
 </head>
 <body class="min-h-screen overflow-x-hidden text-slate-800 dark:text-slate-100 transition-colors duration-300">
@@ -132,11 +165,11 @@
   <div class="flex min-h-screen flex-col lg:flex-row">
     <aside class="w-full lg:w-64 shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200/80 bg-white/80 backdrop-blur-sm flex flex-col lg:sticky lg:top-0 lg:h-screen z-20 dark:bg-slate-900/85 dark:border-slate-700/80">
       <div class="px-4 py-3 lg:p-5 border-b border-slate-100 dark:border-slate-800">
-        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Markalar</p>
+        <p id="sidebar-title" class="text-xs font-semibold uppercase tracking-widest text-slate-400">Markalar</p>
       </div>
       <nav id="brand-nav" class="flex gap-2 overflow-x-auto p-3 lg:block lg:flex-1 lg:space-y-1.5 lg:overflow-x-visible lg:overflow-y-auto lg:min-h-0"></nav>
 
-      <div class="p-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+      <div id="brand-tools" class="p-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
         <button
           id="toggle-brand-form"
           type="button"
@@ -167,7 +200,7 @@
           </div>
           <p class="text-[11px] text-slate-400">Virgulle ayir: `ok, ök, kk, adorel`</p>
           <div class="flex gap-2">
-            <button id="save-brand-btn" type="button" class="flex-1 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-semibold hover:bg-violet-700 transition">Kaydet</button>
+            <button id="save-brand-btn" type="button" class="flex-1 px-3 py-1.5 rounded-lg accent-bg accent-bg-hover-dark text-white text-xs font-semibold transition">Kaydet</button>
             <button id="cancel-brand-btn" type="button" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-500 hover:bg-white transition dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700">İptal</button>
           </div>
           <p id="brand-form-error" class="hidden text-[11px] text-red-500"></p>
@@ -180,30 +213,54 @@
     </aside>
 
     <main class="flex-1 flex flex-col min-w-0 relative">
-      <button
-        id="theme-toggle"
-        type="button"
-        class="absolute top-4 right-4 lg:top-6 lg:right-6 z-10 p-2.5 rounded-xl border border-slate-200/80 bg-white/80 backdrop-blur-sm text-slate-500 hover:text-violet-600 hover:border-violet-200 hover:bg-violet-50 shadow-sm transition dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-400 dark:hover:text-amber-400 dark:hover:border-amber-500/30 dark:hover:bg-amber-950/20"
-        title="Tema değiştir"
-        aria-label="Tema değiştir"
-      >
-        <svg id="icon-sun" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
-        </svg>
-        <svg id="icon-moon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
-        </svg>
-      </button>
+      <div class="absolute top-4 right-4 lg:top-6 lg:right-6 z-10 flex items-center gap-2">
+        <div class="relative">
+          <button
+            id="accent-toggle"
+            type="button"
+            class="p-2.5 rounded-xl border border-slate-200/80 bg-white/80 backdrop-blur-sm text-slate-500 hover:border-violet-200 hover:bg-violet-50 shadow-sm transition dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-400"
+            title="Vurgu rengi"
+            aria-label="Vurgu rengi"
+          >
+            <span class="block w-5 h-5 leading-5 text-center text-base">🎨</span>
+          </button>
+          <div id="accent-panel" class="hidden absolute right-0 top-full mt-2 z-30 p-2 rounded-xl border border-slate-200 bg-white shadow-lg flex items-center gap-1.5 dark:border-slate-700 dark:bg-slate-900">
+            <button type="button" data-accent="violet" class="w-6 h-6 rounded-full transition" style="background:#7c3aed" title="Mor (varsayılan)"></button>
+            <button type="button" data-accent="turquoise" class="w-6 h-6 rounded-full transition" style="background:#0d9488" title="Turkuaz"></button>
+            <button type="button" data-accent="amber" class="w-6 h-6 rounded-full transition" style="background:#d97706" title="Amber"></button>
+            <button type="button" data-accent="pink" class="w-6 h-6 rounded-full transition" style="background:#db2777" title="Pembe"></button>
+          </div>
+        </div>
+        <button
+          id="theme-toggle"
+          type="button"
+          class="p-2.5 rounded-xl border border-slate-200/80 bg-white/80 backdrop-blur-sm text-slate-500 hover:text-violet-600 hover:border-violet-200 hover:bg-violet-50 shadow-sm transition dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-400 dark:hover:text-amber-400 dark:hover:border-amber-500/30 dark:hover:bg-amber-950/20"
+          title="Tema değiştir"
+          aria-label="Tema değiştir"
+        >
+          <svg id="icon-sun" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+          </svg>
+          <svg id="icon-moon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+          </svg>
+        </button>
+      </div>
 
-      <header class="px-5 pt-6 pb-4 sm:px-6 lg:px-8 lg:pt-7 lg:pb-5 border-b border-slate-200/70 dark:border-slate-800/80 pr-20">
+      <header class="px-5 pt-6 pb-4 sm:px-6 lg:px-8 lg:pt-7 lg:pb-5 border-b border-slate-200/70 dark:border-slate-800/80 pr-32">
         <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
           LoqNot<span class="text-violet-500">.</span>
         </h1>
         <p class="mt-1 text-sm text-slate-400 font-medium">Sosyaloq · İlham ve Not Panosu</p>
+        <nav id="tab-nav" class="mt-4 inline-flex items-center gap-0.5 p-0.5 rounded-xl border border-slate-200 bg-white dark:border-slate-700">
+          <button type="button" data-tab="pano" class="tab-btn px-4 py-1.5 rounded-lg text-sm font-semibold">Pano</button>
+          <button type="button" data-tab="tasks" class="tab-btn px-4 py-1.5 rounded-lg text-sm font-semibold">Görevler<span id="tasks-tab-badge" class="hidden ml-1.5 min-w-[18px] px-1 py-0.5 rounded-full bg-red-500 text-white text-[10px] leading-none text-center align-middle"></span></button>
+          <button type="button" data-tab="docs" class="tab-btn px-4 py-1.5 rounded-lg text-sm font-semibold">Notlar</button>
+        </nav>
         <button
           id="install-app-btn"
           type="button"
-          class="mt-4 inline-flex sm:hidden items-center gap-2 rounded-xl border border-violet-300/70 bg-violet-50/80 px-3.5 py-2 text-sm font-semibold text-violet-700 shadow-sm shadow-violet-100 transition hover:bg-violet-100 dark:border-violet-500/40 dark:bg-violet-950/30 dark:text-violet-200 dark:shadow-violet-950/30"
+          class="accent-promo-btn mt-4 inline-flex sm:hidden items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold shadow-sm transition"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v12m0 0l4-4m-4 4l-4-4M5 19h14"/>
@@ -219,7 +276,7 @@
             class="hidden items-center gap-1.5 px-2.5 py-1 rounded-lg border border-violet-200 bg-violet-50/70 text-[11px] font-semibold text-violet-700 hover:bg-violet-100 transition dark:border-violet-500/40 dark:bg-violet-950/30 dark:text-violet-300 dark:hover:bg-violet-950/60"
           >
             Onay Paneli
-            <span id="admin-badge" class="hidden min-w-[18px] px-1 py-0.5 rounded-full bg-violet-600 text-white text-[10px] leading-none text-center">0</span>
+            <span id="admin-badge" class="hidden min-w-[18px] px-1 py-0.5 rounded-full accent-bg text-white text-[10px] leading-none text-center">0</span>
           </button>
           <button
             id="sign-out-btn"
@@ -244,6 +301,14 @@
               </button>
               <button type="button" data-view="list" class="view-btn p-1.5 rounded-md" title="Liste görünümü" aria-label="Liste görünümü">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+              </button>
+            </div>
+            <div id="task-view-toggle" class="hidden items-center gap-0.5 p-0.5 rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+              <button type="button" data-task-view="table" class="task-view-btn p-1.5 rounded-md" title="Tablo görünümü" aria-label="Tablo görünümü">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+              </button>
+              <button type="button" data-task-view="board" class="task-view-btn p-1.5 rounded-md" title="Pano (kanban) görünümü" aria-label="Pano görünümü">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h3a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM10 5a1 1 0 011-1h3a1 1 0 011 1v8a1 1 0 01-1 1h-3a1 1 0 01-1-1V5zM16 5a1 1 0 011-1h3a1 1 0 011 1v11a1 1 0 01-1 1h-3a1 1 0 01-1-1V5z"/></svg>
               </button>
             </div>
           </div>
@@ -271,6 +336,8 @@
             </button>
           </div>
 
+          <div id="task-filters" class="hidden mb-4 flex-wrap gap-1.5"></div>
+
           <div id="notes-container" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"></div>
           <div id="empty-state" class="hidden flex-col items-center justify-center py-20 text-center">
             <div class="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4">
@@ -283,8 +350,8 @@
           </div>
         </section>
 
-        <aside class="lg:w-80 shrink-0 order-1 lg:order-2">
-          <div class="compose-card lg:sticky lg:top-6 bg-white rounded-2xl border border-slate-200/80 shadow-sm shadow-slate-200/50 p-5 dark:bg-slate-800 dark:border-slate-700 dark:shadow-slate-900/50">
+        <aside id="compose-aside" class="lg:w-80 shrink-0 order-1 lg:order-2">
+          <div id="compose-pano" class="compose-card lg:sticky lg:top-6 bg-white rounded-2xl border border-slate-200/80 shadow-sm shadow-slate-200/50 p-5 dark:bg-slate-800 dark:border-slate-700 dark:shadow-slate-900/50">
             <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3 flex items-center justify-between gap-2">
               <span class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -316,13 +383,14 @@
               <button
                 id="add-btn"
                 type="button"
-                class="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-500 active:scale-95 transition shadow-sm"
+                class="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl accent-bg accent-bg-hover-light text-white text-sm font-semibold active:scale-95 transition shadow-sm"
               >
                 Ekle
                 <kbd class="hidden sm:inline text-[10px] font-sans font-semibold px-1.5 py-0.5 rounded bg-white/20">⌘⏎</kbd>
               </button>
             </div>
           </div>
+
         </aside>
       </div>
     </main>
@@ -435,7 +503,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
-    import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+    import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
     import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
 
     // Firebase configuration
@@ -450,7 +518,16 @@
 
     // Initialize Firebase
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    // Ucakta/metroda yazilanlar IndexedDB'de tutulur, internet gelince otomatik senkronlanir.
+    // Bazi ortamlarda (ozel gezinme, eski tarayici) desteklenmezse sessizce hafiza-ici moda duser.
+    let db;
+    try {
+      db = initializeFirestore(app, {
+        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+      });
+    } catch {
+      db = getFirestore(app);
+    }
     const auth = getAuth(app);
 
     // Onay panelini yalnizca bu hesap gorur; kural dosyasindaki adresle ayni olmali
@@ -471,21 +548,80 @@
     const URGENT_FILTER = { id: 'urgent',        name: 'Acil',                  color: '#ef4444' };
     const ARCHIVE_FILTER = { id: 'archive',      name: 'Arşiv',                 color: '#64748b' };
 
+    const TASK_STATUSES = [
+      { id: 'yapiliyor', name: 'Yapılıyor', color: '#f43f5e' },
+      { id: 'beklemede', name: 'Beklemede', color: '#f59e0b' },
+      { id: 'bitti',     name: 'Bitti',     color: '#10b981' },
+    ];
+    const TASK_FILTERS = [
+      { id: 'bugun',     name: '🔥 Bugün' },
+      { id: 'geciken',   name: '⚠️ Geciken' },
+      { id: 'yapiliyor', name: 'Yapılıyor' },
+      { id: 'beklemede', name: 'Beklemede' },
+      { id: 'bitti',     name: 'Bitti' },
+    ];
+    const MEMBER_COLORS = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#14b8a6', '#a855f7', '#f97316', '#84cc16'];
+
+    // Vurgu rengi: mor varsayilan, ayarlar panelinden degistirilebilir. Tonlar
+    // Tailwind'in kendi violet/teal/amber/pink skalasindan alindi.
+    const ACCENT_PRESETS = {
+      violet:    { 50: '#f5f3ff', 100: '#ede9fe', 300: '#c4b5fd', 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 900: '#4c1d95', 950: '#2e1065' },
+      turquoise: { 50: '#f0fdfa', 100: '#ccfbf1', 300: '#5eead4', 500: '#14b8a6', 600: '#0d9488', 700: '#0f766e', 900: '#134e4a', 950: '#042f2e' },
+      amber:     { 50: '#fffbeb', 100: '#fef3c7', 300: '#fcd34d', 500: '#f59e0b', 600: '#d97706', 700: '#b45309', 900: '#78350f', 950: '#451a03' },
+      pink:      { 50: '#fdf2f8', 100: '#fce7f3', 300: '#f9a8d4', 500: '#ec4899', 600: '#db2777', 700: '#be185d', 900: '#831843', 950: '#500724' },
+    };
+
     const THEME_KEY  = 'loqnot-theme-v1';
     const VIEW_KEY   = 'loqnot-view-v1';
     const EMPTY_BRANDS_KEY = 'loqnot-empty-brands-v1';
+    const TAB_KEY    = 'loqnot-tab-v1';
+    const ACCENT_KEY = 'loqnot-accent-v1';
+    const TASK_VIEW_KEY = 'loqnot-task-view-v1';
+    const BOARD_DATE_FILTERS = [
+      { id: 'all',     name: 'Tümü' },
+      { id: 'bugun',   name: '🔥 Bugün' },
+      { id: 'geciken', name: '⚠️ Geciken' },
+    ];
 
     let brands = [];
     let notes = [];
+    let tasks = [];
+    let docs = [];
+    // Gorev atanabilecek kisiler = onaylanmis kullanicilar (allowedUsers)
+    let team = [];
+    // Sekme rozeti icin: giris yapmis kullanicinin e-postasi
+    let currentUserEmail = null;
+    let currentAccent = ACCENT_PRESETS[localStorage.getItem(ACCENT_KEY)] ? localStorage.getItem(ACCENT_KEY) : 'violet';
+    let activeTab = ['pano', 'tasks', 'docs'].includes(localStorage.getItem(TAB_KEY)) ? localStorage.getItem(TAB_KEY) : 'pano';
     let activeFilter = 'all';
+    let taskStatusFilter = 'yapiliyor';
+    // Kanban (pano) modunda durum sutunlarca ayrildigi icin ayri bir tarih filtresi kullanilir
+    let boardDateFilter = 'all';
+    let taskViewMode = localStorage.getItem(TASK_VIEW_KEY) === 'board' ? 'board' : 'table';
     let viewMode = localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid';
     let showEmptyBrands = localStorage.getItem(EMPTY_BRANDS_KEY) === '1';
     let searchQuery = '';
     let editingNoteId = null;
+    let editingTaskId = null;
+    let editingDocId = null;
     let editingBrandId = null;
     let editingDraft = null;
     let knownNoteIds = null;
     let freshNoteIds = new Set();
+    let notesLoaded = false;
+    let tasksLoaded = false;
+    let docsLoaded = false;
+    let notesSyncStarted = false;
+    let tasksSyncStarted = false;
+    let docsSyncStarted = false;
+    // Gorevler sekmesinde soldaki filtre kisi bazlidir: 'all' | 'unassigned' | e-posta
+    let taskFilter = 'all';
+    // Tek seferde tek hucre duzenlenir: {kind, id, draft, draftTitle, ...}
+    // kind: task-title | task-desc | doc-title | doc-body | new-task | new-doc
+    let cellEdit = null;
+    // Acik kisi atama paneli ('p-<taskId>') — yeniden render sonrasi acik kalabilsin diye izlenir
+    let openMenuKey = null;
+    // Anahtarlar "koleksiyon/dokumanId" bicimindedir; silme uc koleksiyonda da geri alinabilir
     const pendingDeletes = new Map();
 
     const brandNav = document.getElementById('brand-nav');
@@ -502,7 +638,10 @@
     const searchInput = document.getElementById('search-input');
     const searchClear = document.getElementById('search-clear');
     const viewToggle = document.getElementById('view-toggle');
+    const taskViewToggle = document.getElementById('task-view-toggle');
     const themeToggle = document.getElementById('theme-toggle');
+    const accentToggle = document.getElementById('accent-toggle');
+    const accentPanel = document.getElementById('accent-panel');
     const toggleBrandForm = document.getElementById('toggle-brand-form');
     const brandForm = document.getElementById('brand-form');
     const brandNameInput = document.getElementById('brand-name-input');
@@ -517,6 +656,12 @@
     const installHintText = document.getElementById('install-hint-text');
     const installHintClose = document.getElementById('install-hint-close');
     const toast = document.getElementById('toast');
+    const tabNav = document.getElementById('tab-nav');
+    const tasksTabBadge = document.getElementById('tasks-tab-badge');
+    const taskFiltersEl = document.getElementById('task-filters');
+    const composeAside = document.getElementById('compose-aside');
+    const sidebarTitle = document.getElementById('sidebar-title');
+    const brandTools = document.getElementById('brand-tools');
     let deferredInstallPrompt = null;
 
     function slugify(name) {
@@ -654,6 +799,30 @@
       updateThemeColorMeta();
     }
 
+    function renderAccentPanel() {
+      accentPanel.querySelectorAll('[data-accent]').forEach(btn => {
+        const active = btn.dataset.accent === currentAccent;
+        btn.classList.toggle('ring-2', active);
+        btn.classList.toggle('ring-offset-2', active);
+        btn.classList.toggle('ring-slate-400', active);
+        btn.classList.toggle('dark:ring-offset-slate-900', active);
+      });
+    }
+
+    function applyAccent(name) {
+      const preset = ACCENT_PRESETS[name] ? name : 'violet';
+      currentAccent = preset;
+      const shades = ACCENT_PRESETS[preset];
+      Object.entries(shades).forEach(([shade, hex]) => {
+        document.documentElement.style.setProperty(`--accent-${shade}`, hex);
+      });
+      ALL_FILTER.color = shades[500];
+      localStorage.setItem(ACCENT_KEY, preset);
+      renderAccentPanel();
+      renderSidebar();
+      renderMain();
+    }
+
     function isStandaloneApp() {
       return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     }
@@ -705,12 +874,26 @@
         } else {
           brands = loadedBrands;
           renderSidebar();
-          renderNotes();
+          renderMain();
           // Paylasimla gelen metin markalardan once yuklenmis olabilir
           if (noteInput.value.trim()) updateComposePreview();
         }
       }, handleSyncError));
 
+      // Gorev atama listesi: onaylanmis kullanicilar. Kurallar listelemeye izin
+      // vermiyorsa (eski kural seti) sessizce bos kalir, uygulama calismaya devam eder
+      syncUnsubs.push(onSnapshot(collection(db, "allowedUsers"), (snapshot) => {
+        let loaded = [];
+        snapshot.forEach((d) => loaded.push({ id: d.id, ...d.data() }));
+        team = loaded.sort((a, b) => (a.name || a.email || a.id).localeCompare(b.name || b.email || b.id, 'tr'));
+        renderSidebar();
+        renderMain();
+      }, () => {}));
+
+      ensureTabSync(activeTab);
+    }
+
+    function startNotesSync() {
       // Listen for Notes updates
       syncUnsubs.push(onSnapshot(collection(db, "notes"), (snapshot) => {
         let loadedNotes = [];
@@ -724,9 +907,73 @@
           : new Set([...incoming].filter(id => !knownNoteIds.has(id)));
         knownNoteIds = incoming;
         notes = loadedNotes;
+        notesLoaded = true;
         renderSidebar();
-        renderNotes();
+        renderMain();
       }, handleSyncError));
+    }
+
+    const ARCHIVE_AFTER_DAYS = 30;
+    const archivingIds = new Set();
+
+    // "Bitti" gorevler 30 gunden eskiyse tasksArchive koleksiyonuna tasinir ve
+    // tasks'tan silinir; boylece canli dinleyici (tasks) zamanla buyumez.
+    // Sunucu/cron yok — hangi istemci Gorevler sekmesini acikken senkronlarsa
+    // en iyi caba ile o tetikler.
+    async function sweepDoneTasks(list) {
+      const cutoff = Date.now() - ARCHIVE_AFTER_DAYS * 24 * 60 * 60 * 1000;
+      const candidates = list.filter(t =>
+        t.status === 'bitti' && t.doneAt && new Date(t.doneAt).getTime() < cutoff && !archivingIds.has(t.id)
+      );
+      for (const t of candidates) {
+        archivingIds.add(t.id);
+        try {
+          const { id, ...data } = t;
+          await setDoc(doc(db, "tasksArchive", id), { ...data, archivedAt: new Date().toISOString() });
+          await deleteDoc(doc(db, "tasks", id));
+        } catch {
+          // Sessizce vazgec — bir sonraki senkronda tekrar denenir
+        } finally {
+          archivingIds.delete(t.id);
+        }
+      }
+    }
+
+    function startTasksSync() {
+      syncUnsubs.push(onSnapshot(collection(db, "tasks"), (snapshot) => {
+        let loaded = [];
+        snapshot.forEach((doc) => {
+          loaded.push({ id: doc.id, ...doc.data() });
+        });
+        tasks = loaded;
+        tasksLoaded = true;
+        renderTabNav();
+        renderSidebar();
+        renderMain();
+        sweepDoneTasks(loaded);
+      }, handleSyncError));
+    }
+
+    function startDocsSync() {
+      syncUnsubs.push(onSnapshot(collection(db, "docs"), (snapshot) => {
+        let loaded = [];
+        snapshot.forEach((doc) => {
+          loaded.push({ id: doc.id, ...doc.data() });
+        });
+        docs = loaded;
+        docsLoaded = true;
+        renderSidebar();
+        renderMain();
+      }, handleSyncError));
+    }
+
+    // Her sekmenin dinleyicisi ilk acilista baslar; boylece kullanilmayan
+    // sekmeler Firestore okuma kotasi tuketmez. Giris yapilmadan calismaz.
+    function ensureTabSync(tab) {
+      if (!syncUnsubs.length) return;
+      if (tab === 'pano' && !notesSyncStarted) { notesSyncStarted = true; startNotesSync(); }
+      if (tab === 'tasks' && !tasksSyncStarted) { tasksSyncStarted = true; startTasksSync(); }
+      if (tab === 'docs' && !docsSyncStarted) { docsSyncStarted = true; startDocsSync(); }
     }
 
     function stopFirebaseSync() {
@@ -734,10 +981,23 @@
       syncUnsubs = [];
       brands = [];
       notes = [];
+      tasks = [];
+      docs = [];
+      team = [];
       knownNoteIds = null;
       freshNoteIds = new Set();
+      notesLoaded = false;
+      tasksLoaded = false;
+      docsLoaded = false;
+      notesSyncStarted = false;
+      tasksSyncStarted = false;
+      docsSyncStarted = false;
+      taskFilter = 'all';
+      taskStatusFilter = 'yapiliyor';
+      cellEdit = null;
+      openMenuKey = null;
       renderSidebar();
-      renderNotes();
+      renderMain();
     }
 
     function getBrandMeta(id) {
@@ -763,12 +1023,37 @@
       return note.urgent !== undefined ? !!note.urgent : !!note.starred;
     }
 
-    // Silinmesi bekleyen (geri alinabilir) notlar listelerde ve sayaclarda gorunmez
+    // Silinmesi bekleyen (geri alinabilir) kayitlar listelerde ve sayaclarda gorunmez
+    function isPendingDelete(coll, id) {
+      return pendingDeletes.has(coll + '/' + id);
+    }
+
     function visibleNotes() {
-      return pendingDeletes.size ? notes.filter(n => !pendingDeletes.has(n.id)) : notes;
+      return pendingDeletes.size ? notes.filter(n => !isPendingDelete('notes', n.id)) : notes;
+    }
+
+    function visibleTasks() {
+      return pendingDeletes.size ? tasks.filter(t => !isPendingDelete('tasks', t.id)) : tasks;
+    }
+
+    function visibleDocs() {
+      return pendingDeletes.size ? docs.filter(d => !isPendingDelete('docs', d.id)) : docs;
+    }
+
+    // Gorevler kisiye gore sayilir (bitmisler sayaclari sisirmesin)
+    function countTasksFor(key) {
+      const pool = visibleTasks().filter(t => t.status !== 'bitti');
+      if (key === 'all') return pool.length;
+      if (key === 'unassigned') return pool.filter(t => !(t.assigneeIds || []).length).length;
+      return pool.filter(t => (t.assigneeIds || []).includes(key)).length;
     }
 
     function countByBrand(brandId) {
+      if (activeTab === 'docs') {
+        const pool = visibleDocs();
+        if (brandId === ALL_FILTER.id) return pool.length;
+        return pool.filter(d => (d.brandIds || []).includes(brandId)).length;
+      }
       const pool = visibleNotes();
       if (brandId === ARCHIVE_FILTER.id) return pool.filter(n => n.archived).length;
       if (brandId === URGENT_FILTER.id) return pool.filter(n => isUrgent(n) && !n.archived).length;
@@ -835,8 +1120,9 @@
     function renderBrandBadge(brandId) {
       const brand = getBrandMeta(brandId);
       const color = displayColor(brand.color);
+      const name = brandId === UNCATEGORIZED.id && activeTab !== 'pano' ? 'Genel' : brand.name;
       return `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold text-slate-600 dark:text-slate-300" style="background:${hexToRgba(color, 0.12)}">
-        <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${color}"></span>${escapeHtml(brand.name)}
+        <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${color}"></span>${escapeHtml(name)}
       </span>`;
     }
 
@@ -866,25 +1152,77 @@
     }
 
     function renderSidebar() {
-      const brandItems = brands.map(b => ({ ...b, count: countByBrand(b.id), deletable: true }));
-      // Aktif filtre bos bir markadaysa o marka gizlenmesin
-      const activeBrands = brandItems
-        .filter(b => b.count > 0 || b.id === activeFilter)
-        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'tr'));
-      const emptyBrands = brandItems
-        .filter(b => !activeBrands.includes(b))
-        .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+      // Gorevlerde sol filtre kisi bazli, diger sekmelerde marka bazli
+      const currentFilter = activeTab === 'tasks' ? taskFilter : activeFilter;
+      let items;
+      let emptyBrands = [];
+      let specialsTopLength = 0;
+      let activeBrandCount = 0;
 
-      const items = [
-        { ...ALL_FILTER, count: countByBrand(ALL_FILTER.id), deletable: false },
-        { ...URGENT_FILTER, count: countByBrand(URGENT_FILTER.id), deletable: false },
-        ...activeBrands,
-        ...(showEmptyBrands ? emptyBrands : []),
-        { ...UNCATEGORIZED, count: countByBrand(UNCATEGORIZED.id), deletable: false },
-        { ...ARCHIVE_FILTER, count: countByBrand(ARCHIVE_FILTER.id), deletable: false },
-      ];
+      if (activeTab === 'tasks') {
+        items = [
+          { id: 'all', name: 'Tüm Görevler', color: ALL_FILTER.color, count: countTasksFor('all'), deletable: false },
+          ...team.map(m => ({ id: m.id, name: m.name || m.email || m.id, color: memberColor(m.id), avatar: avatarHtml(m.id, 22), count: countTasksFor(m.id), deletable: false })),
+          { id: 'unassigned', name: 'Atanmamış', color: '#94a3b8', count: countTasksFor('unassigned'), deletable: false },
+        ];
+      } else {
+        const brandItems = brands.map(b => ({ ...b, count: countByBrand(b.id), deletable: true }));
+        // Aktif filtre bos bir markadaysa o marka gizlenmesin
+        const activeBrands = brandItems
+          .filter(b => b.count > 0 || b.id === activeFilter)
+          .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'tr'));
+        emptyBrands = brandItems
+          .filter(b => !activeBrands.includes(b))
+          .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+
+        // Acil ve Arsiv yalnizca Pano'ya ozgu; Notlar'da markasizlar "Genel" olur
+        const specialsTop = activeTab === 'pano'
+          ? [
+              { ...ALL_FILTER, count: countByBrand(ALL_FILTER.id), deletable: false },
+              { ...URGENT_FILTER, count: countByBrand(URGENT_FILTER.id), deletable: false },
+            ]
+          : [
+              { ...ALL_FILTER, name: 'Tüm Notlar', count: countByBrand(ALL_FILTER.id), deletable: false },
+            ];
+        const specialsBottom = activeTab === 'pano'
+          ? [
+              { ...UNCATEGORIZED, count: countByBrand(UNCATEGORIZED.id), deletable: false },
+              { ...ARCHIVE_FILTER, count: countByBrand(ARCHIVE_FILTER.id), deletable: false },
+            ]
+          : [
+              { ...UNCATEGORIZED, name: 'Genel', count: countByBrand(UNCATEGORIZED.id), deletable: false },
+            ];
+
+        items = [
+          ...specialsTop,
+          ...activeBrands,
+          ...(showEmptyBrands ? emptyBrands : []),
+          ...specialsBottom,
+        ];
+        specialsTopLength = specialsTop.length;
+        activeBrandCount = activeBrands.length;
+      }
 
       const hoverCls = isDark() ? 'hover:bg-slate-800' : 'hover:bg-slate-50';
+
+      // Gorevlerde kisi listesinin ustune sabah bakisi icin Bugun/Geciken kisayollari
+      const taskShortcutsHtml = activeTab === 'tasks' ? [
+        { id: 'bugun',   name: '🔥 Bugün',   color: '#f43f5e', count: visibleTasks().filter(isDueToday).length },
+        { id: 'geciken', name: '⚠️ Geciken', color: '#f59e0b', count: visibleTasks().filter(isOverdue).length },
+      ].map(item => {
+        const active = taskStatusFilter === item.id;
+        const color = displayColor(item.color);
+        const style = active ? `background:${hexToRgba(color, 0.14)};box-shadow:0 0 0 2px ${hexToRgba(color, 0.35)}` : '';
+        const textCls = active ? 'text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400';
+        const badgeStyle = active ? `background:${color};color:${contrastText(color)}` : '';
+        return `<div class="flex shrink-0 lg:shrink items-center gap-1">
+          <button type="button" data-task-shortcut="${item.id}" class="sidebar-item min-w-40 lg:min-w-0 lg:flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-left ${active ? 'active' : hoverCls}" style="${style}">
+            <span class="flex-1 text-sm font-medium truncate ${textCls}">${item.name}</span>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${active ? '' : 'badge-inactive'}" style="${badgeStyle}">${item.count}</span>
+          </button>
+          <span class="hidden lg:block w-7 shrink-0"></span>
+        </div>`;
+      }).join('') + `<div class="hidden lg:block h-px bg-slate-100 dark:bg-slate-800 my-1.5 mx-1"></div>` : '';
 
       const emptyToggleHtml = emptyBrands.length ? `<div class="flex shrink-0 lg:shrink items-center">
         <button type="button" data-toggle-empty class="sidebar-item min-w-40 lg:min-w-0 lg:flex-1 flex items-center gap-2 px-3 py-2 rounded-xl text-left text-xs font-semibold text-slate-400 ${hoverCls}">
@@ -895,7 +1233,7 @@
       </div>` : '';
 
       const rows = items.map(item => {
-        const active = activeFilter === item.id;
+        const active = currentFilter === item.id;
         const color = displayColor(item.color);
         const style = active ? `background:${hexToRgba(color, 0.14)};box-shadow:0 0 0 2px ${hexToRgba(color, 0.35)}` : '';
         const textCls = active ? 'text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400';
@@ -903,7 +1241,7 @@
 
         return `<div class="flex shrink-0 lg:shrink items-center gap-1 group/row">
           <button type="button" data-filter="${item.id}" class="sidebar-item min-w-40 lg:min-w-0 lg:flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-left ${active ? 'active' : hoverCls}" style="${style}">
-            <span class="w-3 h-3 rounded-full shrink-0" style="background:${color}"></span>
+            ${item.avatar || `<span class="w-3 h-3 rounded-full shrink-0" style="background:${color}"></span>`}
             <span class="flex-1 text-sm font-medium truncate ${textCls}">${escapeHtml(item.name)}</span>
             <span class="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${active ? '' : 'badge-inactive'}" style="${badgeStyle}">${item.count}</span>
           </button>
@@ -917,8 +1255,8 @@
       });
 
       // Bos markalar toggle'i aktif markalarin hemen arkasina girer
-      const toggleIndex = 2 + activeBrands.length;
-      brandNav.innerHTML = [...rows.slice(0, toggleIndex), emptyToggleHtml, ...rows.slice(toggleIndex)].join('');
+      const toggleIndex = specialsTopLength + activeBrandCount;
+      brandNav.innerHTML = taskShortcutsHtml + [...rows.slice(0, toggleIndex), emptyToggleHtml, ...rows.slice(toggleIndex)].join('');
     }
 
     function brandIdsKey(ids) {
@@ -936,7 +1274,7 @@
         ></textarea>
         <p class="mt-2 text-[11px] text-slate-400">Kaydedince marka etiketleri otomatik yenilenir · ⌘/Ctrl+Enter ile kaydet</p>
         <div class="flex gap-2 mt-3">
-          <button type="button" data-save-edit="${note.id}" class="flex-1 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-semibold hover:bg-violet-700 transition">Kaydet</button>
+          <button type="button" data-save-edit="${note.id}" class="flex-1 px-3 py-1.5 rounded-lg accent-bg accent-bg-hover-dark text-white text-xs font-semibold transition">Kaydet</button>
           <button type="button" data-cancel-edit="${note.id}" class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-500 hover:bg-slate-50 transition dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700">İptal</button>
         </div>
       </article>`;
@@ -988,6 +1326,10 @@
                 <button type="button" data-copy="${note.id}" class="${menuItemCls} text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700/50">
                   <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                   Kopyala
+                </button>
+                <button type="button" data-totask="${note.id}" class="${menuItemCls} text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700/50">
+                  <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  Göreve Çevir
                 </button>
                 <button type="button" data-delete="${note.id}" class="${menuItemCls} text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40">
                   <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -1084,8 +1426,10 @@
       const archivedInView = filtered.filter(n => n.archived).length;
 
       sectionTitle.textContent = meta.name;
-      sectionSubtitle.textContent = searchQuery.trim()
-        ? `${filtered.length} sonuç`
+      sectionSubtitle.textContent = !notesLoaded
+        ? 'Yükleniyor...'
+        : searchQuery.trim()
+          ? `${filtered.length} sonuç`
         : activeFilter === URGENT_FILTER.id
           ? `${filtered.length} acil not`
         : activeFilter !== ARCHIVE_FILTER.id && archivedInView > 0
@@ -1120,20 +1464,816 @@
       freshNoteIds.clear();
     }
 
+    // ---- Sekmeler: Pano / Gorevler / Notlar ----
+
+    function renderMain() {
+      renderTaskFilters();
+      if (activeTab === 'pano') renderNotes();
+      else if (activeTab === 'tasks') renderTasks();
+      else renderDocs();
+    }
+
+    function renderTabNav() {
+      tabNav.querySelectorAll('[data-tab]').forEach(btn => {
+        const active = btn.dataset.tab === activeTab;
+        btn.classList.toggle('accent-bg', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('shadow-sm', active);
+        btn.classList.toggle('text-slate-500', !active);
+        btn.classList.toggle('dark:text-slate-400', !active);
+      });
+
+      // Kullaniciya atanmis, bitmemis gorev sayisi "Görevler" sekmesinde rozet olur
+      const openMine = currentUserEmail
+        ? visibleTasks().filter(t => t.status !== 'bitti' && (t.assigneeIds || []).includes(currentUserEmail)).length
+        : 0;
+      tasksTabBadge.textContent = openMine;
+      tasksTabBadge.classList.toggle('hidden', openMine === 0);
+    }
+
+    function renderComposer() {
+      // Gorevler ve Notlar tablo icinden duzenlenir; sag form yalnizca Pano'da
+      composeAside.classList.toggle('hidden', activeTab !== 'pano');
+      sidebarTitle.textContent = activeTab === 'tasks' ? 'Kişiler' : 'Markalar';
+      brandTools.classList.toggle('hidden', activeTab === 'tasks');
+      searchInput.placeholder = activeTab === 'pano' ? 'Notlarda ara…'
+        : activeTab === 'tasks' ? 'Görevlerde ara…'
+        : 'Bilgi notlarında ara…';
+    }
+
+    function setTab(tab) {
+      if (activeTab === tab) return;
+      activeTab = tab;
+      localStorage.setItem(TAB_KEY, tab);
+      // Acil ve Arsiv filtreleri yalnizca Pano'da var
+      if (tab !== 'pano' && (activeFilter === URGENT_FILTER.id || activeFilter === ARCHIVE_FILTER.id)) activeFilter = 'all';
+      cellEdit = null;
+      openMenuKey = null;
+      closeNoteMenus();
+      ensureTabSync(tab);
+      renderTabNav();
+      renderComposer();
+      applyViewMode();
+      renderSidebar();
+      renderMain();
+    }
+
+    function activeFilterName() {
+      if (activeFilter === ALL_FILTER.id) return 'Bilgi Notları';
+      if (activeFilter === UNCATEGORIZED.id) return 'Genel';
+      return getBrandMeta(activeFilter).name;
+    }
+
+    function taskFilterName() {
+      if (taskFilter === 'all') return 'Görevler';
+      if (taskFilter === 'unassigned') return 'Atanmamış';
+      return memberName(taskFilter);
+    }
+
+    // ---- Onizleme (marka + link rozetleri) ----
+
+    function buildPreviewHtml(text, generalOk) {
+      const ids = detectBrandIds(text);
+      let html = '';
+      if (ids.length === 1 && ids[0] === UNCATEGORIZED.id && !generalOk) {
+        html += `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          Marka algılanmadı</span>`;
+      } else {
+        html += ids.map(renderBrandBadge).join('');
+      }
+
+      (text.match(URL_RE) || []).forEach(url => {
+        const meta = linkMeta(url);
+        html += `<span class="link-chip" style="--chip:${meta.color}"><span class="link-chip-dot"></span>${escapeHtml(meta.label)}</span>`;
+      });
+
+      return html;
+    }
+
+    function renderPreview(el, text, generalOk) {
+      if (!text.trim()) {
+        el.classList.add('hidden');
+        el.classList.remove('flex');
+        el.innerHTML = '';
+        return;
+      }
+      el.innerHTML = buildPreviewHtml(text, generalOk);
+      el.classList.remove('hidden');
+      el.classList.add('flex');
+    }
+
+    // ---- Gorevler ----
+
+    function taskStatusMeta(id) {
+      return TASK_STATUSES.find(s => s.id === id) || TASK_STATUSES[0];
+    }
+
+    // Durum dropdown'i ve kanban surukle-birak ayni guncellemeyi paylasir
+    async function setTaskStatus(taskId, statusId) {
+      try {
+        await updateDoc(doc(db, "tasks", taskId), {
+          status: statusId,
+          doneAt: statusId === 'bitti' ? new Date().toISOString() : null
+        });
+      } catch (err) {
+        showToast('Durum güncellenemedi');
+      }
+    }
+
+    // Ayni e-posta her cihazda ayni rengi alir
+    function memberColor(email) {
+      let h = 0;
+      for (const ch of String(email)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      return MEMBER_COLORS[h % MEMBER_COLORS.length];
+    }
+
+    function memberName(email) {
+      const m = team.find(x => x.id === email);
+      const name = m && (m.name || m.email);
+      return name || String(email).split('@')[0];
+    }
+
+    // Google fotografi varsa gercek yuz, yoksa renkli bas harf rozeti
+    function avatarHtml(email, sizePx) {
+      const m = team.find(x => x.id === email);
+      const size = sizePx || 20;
+      if (m && m.photo) {
+        return `<img src="${escapeHtml(m.photo)}" referrerpolicy="no-referrer" alt="" class="rounded-full object-cover shrink-0" style="width:${size}px;height:${size}px" />`;
+      }
+      const c = displayColor(memberColor(email));
+      const initial = escapeHtml((memberName(email) || '?').trim().charAt(0).toUpperCase());
+      return `<span class="rounded-full shrink-0 inline-flex items-center justify-center font-bold text-white" style="width:${size}px;height:${size}px;background:${c};font-size:${Math.round(size * 0.5)}px">${initial}</span>`;
+    }
+
+    function todayStr() {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function formatDueDate(iso) {
+      return new Date(iso + 'T00:00:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    }
+
+    function sortTasks(list) {
+      const order = { yapiliyor: 0, beklemede: 1, bitti: 2 };
+      return [...list].sort((a, b) => {
+        const s = (order[a.status] ?? 0) - (order[b.status] ?? 0);
+        if (s !== 0) return s;
+        if (a.dueDate && b.dueDate && a.dueDate !== b.dueDate) return a.dueDate < b.dueDate ? -1 : 1;
+        if (!!a.dueDate !== !!b.dueDate) return a.dueDate ? -1 : 1;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+    }
+
+    // 'bugun'/'geciken' durum degil, teslim tarihine gore tum durumlari kesen bir gorunum
+    function isDueToday(t) {
+      return t.dueDate === todayStr() && t.status !== 'bitti';
+    }
+
+    function isOverdue(t) {
+      return !!t.dueDate && t.dueDate < todayStr() && t.status !== 'bitti';
+    }
+
+    // Kisi filtresi + arama, tablo/kart ve pano gorunumlerinin ortak taban havuzu
+    function baseTaskPool() {
+      let list = visibleTasks();
+      if (taskFilter === 'unassigned') list = list.filter(t => !(t.assigneeIds || []).length);
+      else if (taskFilter !== 'all') list = list.filter(t => (t.assigneeIds || []).includes(taskFilter));
+
+      const q = normalize(searchQuery);
+      if (q) {
+        list = list.filter(t =>
+          normalize((t.text || '') + ' ' + (t.desc || '')).includes(q) ||
+          (t.assigneeIds || []).some(email => normalize(memberName(email) + ' ' + email).includes(q))
+        );
+      }
+      return list;
+    }
+
+    // Tablo ve mobil kart listesi: durum/tarih cipleri (Bugün/Geciken/Yapılıyor/...) tek secimli
+    function getFilteredTasks() {
+      let list = baseTaskPool();
+      if (taskStatusFilter === 'bugun') list = list.filter(isDueToday);
+      else if (taskStatusFilter === 'geciken') list = list.filter(isOverdue);
+      else list = list.filter(t => t.status === taskStatusFilter);
+      return sortTasks(list);
+    }
+
+    // Pano (kanban): sutunlar zaten duruma gore ayrildigindan burada yalnizca
+    // tarih daraltmasi (Tümü/Bugün/Geciken) uygulanir
+    function getBoardTasks() {
+      let list = baseTaskPool();
+      if (boardDateFilter === 'bugun') list = list.filter(isDueToday);
+      else if (boardDateFilter === 'geciken') list = list.filter(isOverdue);
+      return sortTasks(list);
+    }
+
+    function isNarrowViewport() {
+      return window.matchMedia('(max-width: 639px)').matches;
+    }
+
+    function renderTaskFilters() {
+      taskFiltersEl.classList.toggle('hidden', activeTab !== 'tasks');
+      taskFiltersEl.classList.toggle('flex', activeTab === 'tasks');
+      if (activeTab !== 'tasks') return;
+
+      let pool = visibleTasks();
+      if (taskFilter === 'unassigned') pool = pool.filter(t => !(t.assigneeIds || []).length);
+      else if (taskFilter !== 'all') pool = pool.filter(t => (t.assigneeIds || []).includes(taskFilter));
+
+      const chipCls = active => active
+        ? 'accent-bg text-white shadow-sm'
+        : 'border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800';
+
+      // Masaustu pano (kanban) modunda sutunlar zaten duruma gore ayrilir; ciplerde
+      // yalnizca tarih daraltmasi (Tümü/Bugün/Geciken) gosterilir. Mobilde ise pano
+      // devre disi kalip her zaman duz kart listesine dusuldugu icin durum cipleri kalir.
+      if (taskViewMode === 'board' && !isNarrowViewport()) {
+        const counts = { all: pool.length, bugun: pool.filter(isDueToday).length, geciken: pool.filter(isOverdue).length };
+        taskFiltersEl.innerHTML = BOARD_DATE_FILTERS.map(f => {
+          const active = boardDateFilter === f.id;
+          return `<button type="button" data-board-date-filter="${f.id}" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition ${chipCls(active)}">${f.name} · ${counts[f.id]}</button>`;
+        }).join('');
+        return;
+      }
+
+      const counts = {
+        bugun: pool.filter(isDueToday).length,
+        geciken: pool.filter(isOverdue).length,
+        yapiliyor: pool.filter(t => t.status === 'yapiliyor').length,
+        beklemede: pool.filter(t => t.status === 'beklemede').length,
+        bitti: pool.filter(t => t.status === 'bitti').length,
+      };
+
+      taskFiltersEl.innerHTML = TASK_FILTERS.map(f => {
+        const active = taskStatusFilter === f.id;
+        return `<button type="button" data-task-filter="${f.id}" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition ${chipCls(active)}">${f.name} · ${counts[f.id]}</button>`;
+      }).join('');
+    }
+
+    // Genisletilmis aciklama hucresinde linkler tiklanabilir cipler olarak listelenir
+    function linkChipsRow(text) {
+      const urls = (text || '').match(URL_RE) || [];
+      if (!urls.length) return '';
+      return `<div class="mt-1.5 flex flex-wrap gap-1.5">${urls.map(url => {
+        const meta = linkMeta(url);
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="link-chip" style="--chip:${meta.color}"><span class="link-chip-dot"></span>${escapeHtml(meta.label)}<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M7 17L17 7M7 7h10v10"/></svg></a>`;
+      }).join('')}</div>`;
+    }
+
+    const CELL_INPUT_CLS = 'w-full rounded-lg border accent-border-input bg-white px-2.5 py-1.5 text-sm text-slate-700 accent-ring-input dark:bg-slate-900 dark:text-slate-200';
+    const CELL_BTN_SAVE = 'px-2.5 py-1 rounded-lg accent-bg accent-bg-hover-dark text-white text-[11px] font-semibold transition';
+    const CELL_BTN_CANCEL = 'px-2.5 py-1 rounded-lg border border-slate-200 text-[11px] font-medium text-slate-500 hover:bg-slate-50 transition dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700';
+
+    function renderAssigneeBadge(email) {
+      const c = displayColor(memberColor(email));
+      return `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold" style="background:${hexToRgba(c, 0.12)};color:${c}">
+        ${avatarHtml(email, 14)}${escapeHtml(memberName(email))}
+      </span>`;
+    }
+
+    const TASK_GRID = 'grid grid-cols-[minmax(190px,1.2fr)_minmax(230px,2fr)_112px_180px_142px_40px] items-start';
+
+    function renderTaskTitleCell(task) {
+      if (cellEdit && cellEdit.kind === 'task-title' && cellEdit.id === task.id) {
+        return `<div class="px-3 py-2">
+          <input data-cell-input type="text" class="${CELL_INPUT_CLS}" />
+          <p class="mt-1 text-[10px] text-slate-400">Enter kaydeder · Esc iptal</p>
+        </div>`;
+      }
+      const done = task.status === 'bitti';
+      return `<div data-cell="task-title" data-id="${task.id}" class="px-3 py-2.5 cursor-text min-w-0" title="Düzenlemek için tıkla">
+        ${task.text
+          ? `<p class="text-sm font-medium text-slate-700 dark:text-slate-200 break-words ${done ? 'task-done-text' : ''}">${escapeHtml(task.text)}</p>`
+          : '<span class="text-sm text-slate-300 dark:text-slate-600">Görev adı yaz…</span>'}
+      </div>`;
+    }
+
+    function renderTaskDescCell(task) {
+      if (cellEdit && cellEdit.kind === 'task-desc' && cellEdit.id === task.id) {
+        return `<div class="px-3 py-2">
+          <textarea data-cell-input rows="3" class="${CELL_INPUT_CLS} resize-none" placeholder="Detayları yaz…"></textarea>
+          ${linkChipsRow(task.desc)}
+          <div class="mt-1.5 flex items-center gap-2">
+            <button type="button" data-save-cell class="${CELL_BTN_SAVE}">Kaydet</button>
+            <button type="button" data-cancel-cell class="${CELL_BTN_CANCEL}">İptal</button>
+            <span class="text-[10px] text-slate-400">⌘⏎ kaydeder</span>
+          </div>
+        </div>`;
+      }
+      const desc = (task.desc || '').trim();
+      return `<div data-cell="task-desc" data-id="${task.id}" class="px-3 py-2.5 cursor-text min-w-0" title="Detayları görmek ve yazmak için tıkla">
+        ${desc
+          ? `<div class="text-sm text-slate-500 dark:text-slate-400 truncate">${linkify(desc.split('\n')[0])}</div>`
+          : '<span class="text-sm text-slate-300 dark:text-slate-600">Açıklama ekle…</span>'}
+      </div>`;
+    }
+
+    function renderTaskStatusCell(task) {
+      const st = taskStatusMeta(task.status);
+      const c = displayColor(st.color);
+      const open = openMenuKey === 's-' + task.id;
+      const panel = open ? `<div class="note-menu absolute left-0 top-full mt-1 z-30 w-40 rounded-xl border border-slate-200 bg-white shadow-lg py-1 dark:border-slate-700">
+        ${TASK_STATUSES.map(s => {
+          const sc = displayColor(s.color);
+          const sel = s.id === task.status;
+          return `<button type="button" data-status-option="${task.id}|${s.id}" class="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-left transition hover:bg-slate-50 dark:hover:bg-slate-700/50 ${sel ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'}">
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${sc}"></span>
+            <span class="flex-1">${s.name}</span>
+            ${sel ? '<svg class="w-4 h-4 shrink-0 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>' : ''}
+          </button>`;
+        }).join('')}
+      </div>` : '';
+      return `<div class="relative px-3 py-2.5">
+        <button type="button" data-status-cell="${task.id}" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold" style="background:${hexToRgba(c, 0.12)};color:${c}" title="Durumu seç">
+          <span class="w-1.5 h-1.5 rounded-full" style="background:${c}"></span>${st.name}
+          <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        ${panel}
+      </div>`;
+    }
+
+    function renderTaskPersonCell(task) {
+      const chips = (task.assigneeIds || []).map(renderAssigneeBadge).join('');
+      const open = openMenuKey === 'p-' + task.id;
+      const panel = open ? `<div class="note-menu absolute left-0 top-full mt-1 z-30 w-56 rounded-xl border border-slate-200 bg-white shadow-lg py-1 dark:border-slate-700">
+        ${team.length ? team.map(m => {
+          const sel = (task.assigneeIds || []).includes(m.id);
+          return `<button type="button" data-assignee-option="${escapeHtml(task.id + '|' + m.id)}" class="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-left transition hover:bg-slate-50 dark:hover:bg-slate-700/50 ${sel ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'}">
+            ${avatarHtml(m.id, 20)}
+            <span class="flex-1 truncate">${escapeHtml(m.name || m.email || m.id)}</span>
+            ${sel ? '<svg class="w-4 h-4 shrink-0 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>' : ''}
+          </button>`;
+        }).join('') : '<p class="px-3.5 py-2 text-xs text-slate-400">Onaylı kullanıcı yok</p>'}
+      </div>` : '';
+      return `<div class="relative px-2 py-2 min-w-0">
+        <button type="button" data-person-cell="${task.id}" class="w-full min-h-[28px] flex flex-wrap items-center gap-1 text-left rounded-lg px-1.5 py-0.5 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition" title="Kişi ekle / çıkar">
+          ${chips || '<span class="text-sm text-slate-300 dark:text-slate-600">Kişi ata…</span>'}
+        </button>
+        ${panel}
+      </div>`;
+    }
+
+    function renderTaskDueCell(task) {
+      const overdue = isOverdue(task);
+      return `<div class="px-2 py-2">
+        <input data-due-input="${task.id}" type="date" value="${task.dueDate || ''}" title="Bitiş tarihi" class="w-full bg-transparent text-xs font-medium rounded-lg border border-transparent hover:border-slate-200 focus:border-violet-300 px-1.5 py-1 transition cursor-pointer ${overdue ? 'text-red-500' : 'text-slate-600 dark:text-slate-300'} dark:hover:border-slate-700" />
+      </div>`;
+    }
+
+    function renderTaskRow(task) {
+      return `<div class="${TASK_GRID} border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition">
+        ${renderTaskTitleCell(task)}
+        ${renderTaskDescCell(task)}
+        ${renderTaskStatusCell(task)}
+        ${renderTaskPersonCell(task)}
+        ${renderTaskDueCell(task)}
+        <div class="px-1 py-2 flex justify-end">
+          <button type="button" data-task-delete="${task.id}" class="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition" title="Görevi sil">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+      </div>`;
+    }
+
+    const NEW_TASK_BTN = `<button type="button" data-new-task class="w-full flex items-center justify-center gap-1.5 text-sm font-medium text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 transition">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      Yeni görev
+    </button>`;
+
+    // Kart govdesi: mobil tek-sutun liste ile masaustu pano kartlari ayni icerigi
+    // paylasir, yalnizca disaridaki sarici (draggable, boyut) farklidir
+    function renderTaskCardInner(task) {
+      return `<button type="button" data-task-delete="${task.id}" class="absolute top-1.5 right-1.5 z-10 p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition" title="Görevi sil">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        </button>
+        <div class="pr-8">${renderTaskTitleCell(task)}</div>
+        ${renderTaskDescCell(task)}
+        <div class="flex flex-wrap items-center gap-1 px-1 py-1">
+          <div class="shrink-0">${renderTaskStatusCell(task)}</div>
+          <div class="flex-1 min-w-[110px]">${renderTaskPersonCell(task)}</div>
+        </div>
+        ${renderTaskDueCell(task)}`;
+    }
+
+    function renderTaskCardMobile(task) {
+      return `<div class="relative rounded-2xl border border-slate-200/80 dark:border-[#2a2a2e] bg-white dark:bg-[#111113] shadow-sm divide-y divide-slate-100 dark:divide-slate-800">
+        ${renderTaskCardInner(task)}
+      </div>`;
+    }
+
+    function renderTaskBoardCard(task) {
+      return `<div draggable="true" data-task-card="${task.id}" class="task-card relative rounded-xl border border-slate-200/80 dark:border-[#2a2a2e] bg-white dark:bg-[#111113] shadow-sm divide-y divide-slate-100 dark:divide-slate-800 cursor-grab active:cursor-grabbing">
+        ${renderTaskCardInner(task)}
+      </div>`;
+    }
+
+    function renderTaskBoardHtml(list) {
+      const cols = TASK_STATUSES.map(s => {
+        const items = list.filter(t => t.status === s.id);
+        const c = displayColor(s.color);
+        return `<div data-status-col="${s.id}" class="flex-1 min-w-[270px] bg-slate-50/70 dark:bg-slate-900/40 rounded-2xl border border-slate-200/70 dark:border-slate-800 p-2.5 flex flex-col gap-2">
+          <div class="flex items-center gap-2 px-1 pb-1">
+            <span class="w-2 h-2 rounded-full shrink-0" style="background:${c}"></span>
+            <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">${s.name}</span>
+            <span class="text-xs font-semibold text-slate-400">${items.length}</span>
+          </div>
+          <div class="flex flex-col gap-2 min-h-[48px]">
+            ${items.length ? items.map(renderTaskBoardCard).join('') : '<div class="text-xs text-slate-300 dark:text-slate-600 text-center py-4">Boş</div>'}
+          </div>
+          ${s.id === 'yapiliyor' ? `<div class="pt-1">${NEW_TASK_BTN}</div>` : ''}
+        </div>`;
+      }).join('');
+      return `<div class="flex gap-3 overflow-x-auto pb-2 items-start">${cols}</div>`;
+    }
+
+    function renderTaskTableHtml(filtered, emptyMsg) {
+      const header = `<div class="${TASK_GRID} text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <div class="px-3 py-2.5">Görev</div>
+        <div class="px-3 py-2.5">Açıklama</div>
+        <div class="px-3 py-2.5">Durum</div>
+        <div class="px-2 py-2.5">Kişi</div>
+        <div class="px-2 py-2.5">Bitiş Tarihi</div>
+        <div></div>
+      </div>`;
+
+      const emptyRow = `<div class="border-t border-slate-100 dark:border-slate-800 px-3 py-8 text-sm text-slate-400 text-center">${emptyMsg}</div>`;
+      const newRow = `<div class="border-t border-slate-100 dark:border-slate-800 px-3 py-2.5">${NEW_TASK_BTN}</div>`;
+
+      return `<div class="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:bg-[#111113] dark:border-[#2a2a2e]">
+        <div class="min-w-[900px]">${header}${filtered.length ? filtered.map(renderTaskRow).join('') : emptyRow}${newRow}</div>
+      </div>`;
+    }
+
+    function renderTasks() {
+      captureCellDraft();
+      const filtered = getFilteredTasks();
+      const boardMode = taskViewMode === 'board';
+      const boardList = boardMode ? getBoardTasks() : [];
+      const activeCount = boardMode ? boardList.length : filtered.length;
+
+      sectionTitle.textContent = taskFilterName();
+      sectionSubtitle.textContent = !tasksLoaded
+        ? 'Yükleniyor...'
+        : searchQuery.trim()
+          ? `${activeCount} sonuç`
+          : `${activeCount} görev`;
+      searchClear.classList.toggle('hidden', !searchQuery.trim());
+      emptyState.classList.add('hidden');
+      emptyState.classList.remove('flex');
+
+      const emptyMsg = !tasksLoaded
+        ? 'Görevler yükleniyor…'
+        : searchQuery.trim()
+          ? `"${escapeHtml(searchQuery)}" ile eşleşen görev yok`
+          : 'Bu görünümde görev yok';
+
+      // Mobilde pano/tablo secimi ne olursa olsun her zaman tek sutun kart listesi gosterilir
+      const mobileCards = filtered.length
+        ? filtered.map(renderTaskCardMobile).join('')
+        : `<div class="rounded-2xl border border-slate-200/80 dark:border-[#2a2a2e] bg-white dark:bg-[#111113] px-3 py-8 text-sm text-slate-400 text-center">${emptyMsg}</div>`;
+      const mobileHtml = `<div class="sm:hidden space-y-2.5">
+        ${mobileCards}
+        <div class="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 px-3 py-3">${NEW_TASK_BTN}</div>
+      </div>`;
+
+      const desktopInner = boardMode ? renderTaskBoardHtml(boardList) : renderTaskTableHtml(filtered, emptyMsg);
+      const desktopHtml = `<div class="hidden sm:block">${desktopInner}</div>`;
+
+      notesContainer.innerHTML = mobileHtml + desktopHtml;
+      focusCellInput();
+    }
+
+    // ---- Bilgi Notlari ----
+
+    function getFilteredDocs() {
+      let list = visibleDocs();
+      if (activeFilter !== ALL_FILTER.id) list = list.filter(d => (d.brandIds || []).includes(activeFilter));
+
+      const q = normalize(searchQuery);
+      if (q) {
+        list = list.filter(d =>
+          normalize((d.title || '') + ' ' + (d.body || '')).includes(q) ||
+          (d.brandIds || []).some(id => getBrandTerms(getBrandMeta(id)).some(term => term.includes(q)))
+        );
+      }
+
+      return [...list].sort((a, b) => {
+        const pinDiff = Number(!!b.pinned) - Number(!!a.pinned);
+        if (pinDiff !== 0) return pinDiff;
+        return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
+      });
+    }
+
+    const DOC_GRID = 'grid grid-cols-[minmax(190px,1fr)_minmax(260px,2.2fr)_150px_100px] items-start';
+
+    function renderDocTitleCell(d) {
+      if (cellEdit && cellEdit.kind === 'doc-title' && cellEdit.id === d.id) {
+        return `<div class="px-3 py-2">
+          <input data-cell-input type="text" class="${CELL_INPUT_CLS}" placeholder="Başlık" />
+          <p class="mt-1 text-[10px] text-slate-400">Enter kaydeder · Esc iptal</p>
+        </div>`;
+      }
+      const pin = d.pinned
+        ? '<svg class="inline w-3.5 h-3.5 mr-1 -mt-0.5 text-amber-500" fill="currentColor" viewBox="0 0 24 24"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>'
+        : '';
+      return `<div data-cell="doc-title" data-id="${d.id}" class="px-3 py-2.5 cursor-text min-w-0" title="Başlığı düzenlemek için tıkla">
+        <p class="text-sm font-semibold text-slate-700 dark:text-slate-200 break-words">${pin}${escapeHtml(d.title || 'Başlıksız')}</p>
+      </div>`;
+    }
+
+    function renderDocBodyCell(d) {
+      if (cellEdit && cellEdit.kind === 'doc-body' && cellEdit.id === d.id) {
+        return `<div class="px-3 py-2">
+          <textarea data-cell-input rows="4" class="${CELL_INPUT_CLS} resize-none" placeholder="Detayları yaz…"></textarea>
+          ${linkChipsRow(d.body)}
+          <div class="mt-1.5 flex items-center gap-2">
+            <button type="button" data-save-cell class="${CELL_BTN_SAVE}">Kaydet</button>
+            <button type="button" data-cancel-cell class="${CELL_BTN_CANCEL}">İptal</button>
+            <span class="text-[10px] text-slate-400">⌘⏎ kaydeder</span>
+          </div>
+        </div>`;
+      }
+      const body = (d.body || '').trim();
+      return `<div data-cell="doc-body" data-id="${d.id}" class="px-3 py-2.5 cursor-text min-w-0" title="Detayları görmek ve yazmak için tıkla">
+        ${body
+          ? `<div class="text-sm text-slate-500 dark:text-slate-400 truncate">${linkify(body.split('\n')[0])}</div>`
+          : '<span class="text-sm text-slate-300 dark:text-slate-600">Açıklama ekle…</span>'}
+      </div>`;
+    }
+
+    function renderDocRow(d) {
+      const badges = (d.brandIds || []).map(renderBrandBadge).join('');
+      return `<div class="${DOC_GRID} border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition ${d.pinned ? 'bg-amber-50/40 dark:bg-amber-950/10' : ''}">
+        ${renderDocTitleCell(d)}
+        ${renderDocBodyCell(d)}
+        <div class="px-3 py-2.5 flex flex-wrap gap-1">${badges}</div>
+        <div class="px-1 py-2 flex items-center justify-end gap-0.5">
+          <button type="button" data-doc-pin="${d.id}" class="p-1.5 rounded-lg transition ${d.pinned ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/30'}" title="${d.pinned ? 'Sabitlemeyi kaldır' : 'Sabitle — her filtrede en üstte durur'}">
+            <svg class="w-4 h-4" fill="${d.pinned ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+          </button>
+          <button type="button" data-doc-totask="${d.id}" class="p-1.5 rounded-lg text-slate-300 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-950/30 transition" title="Göreve çevir">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </button>
+          <button type="button" data-doc-delete="${d.id}" class="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition" title="Notu sil">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+      </div>`;
+    }
+
+    function renderDocs() {
+      captureCellDraft();
+      const filtered = getFilteredDocs();
+      sectionTitle.textContent = activeFilterName();
+      sectionSubtitle.textContent = !docsLoaded
+        ? 'Yükleniyor...'
+        : searchQuery.trim()
+          ? `${filtered.length} sonuç`
+          : `${filtered.length} bilgi notu`;
+      searchClear.classList.toggle('hidden', !searchQuery.trim());
+      emptyState.classList.add('hidden');
+      emptyState.classList.remove('flex');
+
+      const header = `<div class="${DOC_GRID} text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <div class="px-3 py-2.5">Not</div>
+        <div class="px-3 py-2.5">Açıklama</div>
+        <div class="px-3 py-2.5">Marka</div>
+        <div></div>
+      </div>`;
+
+      const emptyRow = !docsLoaded
+        ? '<div class="border-t border-slate-100 dark:border-slate-800 px-3 py-8 text-sm text-slate-400 text-center">Bilgi notları yükleniyor…</div>'
+        : searchQuery.trim()
+          ? `<div class="border-t border-slate-100 dark:border-slate-800 px-3 py-8 text-sm text-slate-400 text-center">"${escapeHtml(searchQuery)}" ile eşleşen bilgi notu yok</div>`
+          : '<div class="border-t border-slate-100 dark:border-slate-800 px-3 py-8 text-sm text-slate-400 text-center">Henüz bilgi notu yok — firma bilgilerini ve genel kuralları buraya topla</div>';
+
+      const newRow = cellEdit && cellEdit.kind === 'new-doc'
+        ? `<div class="border-t border-slate-100 dark:border-slate-800 px-3 py-3 space-y-2">
+            <input data-cell-input-title type="text" placeholder="Başlık (örn. Anatolia — çekim kuralları)" class="${CELL_INPUT_CLS} font-semibold" />
+            <textarea data-cell-input rows="4" placeholder="Detayları yaz… Marka adı geçerse otomatik etiketlenir." class="${CELL_INPUT_CLS} resize-none"></textarea>
+            <div class="flex items-center gap-2">
+              <button type="button" data-save-cell class="${CELL_BTN_SAVE}">Kaydet</button>
+              <button type="button" data-cancel-cell class="${CELL_BTN_CANCEL}">İptal</button>
+              <span class="text-[10px] text-slate-400">⌘⏎ kaydeder · Esc iptal</span>
+            </div>
+          </div>`
+        : `<button type="button" data-new-doc class="w-full flex items-center gap-2 border-t border-slate-100 dark:border-slate-800 px-3 py-2.5 text-sm font-medium text-slate-400 hover:text-violet-600 hover:bg-slate-50/80 dark:hover:text-violet-400 dark:hover:bg-slate-800/40 transition text-left">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Yeni bilgi notu
+          </button>`;
+
+      notesContainer.innerHTML = `<div class="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:bg-[#111113] dark:border-[#2a2a2e]">
+        <div class="min-w-[760px]">${header}${filtered.length ? filtered.map(renderDocRow).join('') : emptyRow}${newRow}</div>
+      </div>`;
+      focusCellInput();
+    }
+
+    // ---- Hucre duzenleme (Notion tarzi satir ici) ----
+
+    function openCellEdit(kind, id, draft, draftTitle) {
+      cellEdit = {
+        kind,
+        id: id || null,
+        draft: draft ?? '',
+        draftTitle: draftTitle ?? '',
+        hadFocus: kind !== 'new-doc',
+        focusTitle: kind === 'new-doc',
+        selStart: null,
+        selEnd: null,
+      };
+      openMenuKey = null;
+      renderMain();
+    }
+
+    function cancelCellEdit() {
+      cellEdit = null;
+      renderMain();
+    }
+
+    async function saveCellEdit() {
+      if (!cellEdit) return;
+      const { kind, id } = cellEdit;
+      const draft = (cellEdit.draft || '').trim();
+      const draftTitle = (cellEdit.draftTitle || '').trim();
+
+      try {
+        if (kind === 'task-title') {
+          const t = tasks.find(x => x.id === id);
+          if (!t || !draft) { cancelCellEdit(); return; }
+          await updateDoc(doc(db, "tasks", id), {
+            text: draft,
+            updatedAt: new Date().toISOString()
+          });
+        } else if (kind === 'task-desc') {
+          const t = tasks.find(x => x.id === id);
+          if (!t) { cancelCellEdit(); return; }
+          await updateDoc(doc(db, "tasks", id), {
+            desc: draft,
+            updatedAt: new Date().toISOString()
+          });
+        } else if (kind === 'doc-title') {
+          const d = docs.find(x => x.id === id);
+          if (!d) { cancelCellEdit(); return; }
+          await updateDoc(doc(db, "docs", id), {
+            title: draft,
+            brandIds: detectBrandIds(draft + '\n' + (d.body || '')),
+            updatedAt: new Date().toISOString()
+          });
+        } else if (kind === 'doc-body') {
+          const d = docs.find(x => x.id === id);
+          if (!d) { cancelCellEdit(); return; }
+          await updateDoc(doc(db, "docs", id), {
+            body: draft,
+            brandIds: detectBrandIds((d.title || '') + '\n' + draft),
+            updatedAt: new Date().toISOString()
+          });
+        } else if (kind === 'new-doc') {
+          if (!draft && !draftTitle) { cancelCellEdit(); return; }
+          await setDoc(doc(db, "docs", crypto.randomUUID()), {
+            title: draftTitle,
+            body: draft,
+            brandIds: detectBrandIds(draftTitle + '\n' + draft),
+            pinned: false,
+            createdAt: new Date().toISOString()
+          });
+        }
+        cellEdit = null;
+        renderMain();
+      } catch {
+        showToast('Kaydedilemedi');
+      }
+    }
+
+    // Gorevler sekmesinde mobil kart listesi ve masaustu tablo/pano ayni anda DOM'da
+    // durur (biri CSS ile gizli); duzenleme girdisi hep GORUNEN kopyadan okunmali
+    function visibleQuery(selector) {
+      const matches = notesContainer.querySelectorAll(selector);
+      for (const el of matches) if (el.offsetParent !== null) return el;
+      return matches[0] || null;
+    }
+
+    // Yeniden render (senkron guncellemesi) o an yazilan taslagi silmesin
+    function captureCellDraft() {
+      if (!cellEdit) return;
+      const input = visibleQuery('[data-cell-input]');
+      if (input) {
+        cellEdit.draft = input.value;
+        cellEdit.hadFocus = document.activeElement === input;
+        cellEdit.selStart = input.selectionStart;
+        cellEdit.selEnd = input.selectionEnd;
+      }
+      const titleInput = visibleQuery('[data-cell-input-title]');
+      if (titleInput) {
+        cellEdit.draftTitle = titleInput.value;
+        cellEdit.focusTitle = document.activeElement === titleInput;
+      }
+    }
+
+    function focusCellInput() {
+      if (!cellEdit) return;
+      const input = visibleQuery('[data-cell-input]');
+      const titleInput = visibleQuery('[data-cell-input-title]');
+      if (titleInput) titleInput.value = cellEdit.draftTitle || '';
+      if (input) {
+        input.value = cellEdit.draft || '';
+        if (input.tagName === 'TEXTAREA') {
+          input.style.height = 'auto';
+          input.style.height = Math.min(input.scrollHeight, 300) + 'px';
+        }
+      }
+      if (cellEdit.focusTitle && titleInput) {
+        titleInput.focus();
+      } else if (cellEdit.hadFocus && input) {
+        input.focus();
+        if (cellEdit.selStart != null) {
+          try { input.setSelectionRange(cellEdit.selStart, cellEdit.selEnd); } catch {}
+        }
+      }
+    }
+
+    // Not ya da bilgi notundan tek tikla gorev uretir: ilk satir gorev adi,
+    // kalani aciklama olur
+    async function createTaskFromText(text) {
+      const trimmed = (text || '').trim();
+      if (!trimmed) return;
+      const lines = trimmed.split('\n');
+      const title = lines[0].slice(0, 140);
+      const desc = ((lines[0].length > 140 ? '…' + lines[0].slice(140) + '\n' : '') + lines.slice(1).join('\n')).trim();
+      try {
+        await setDoc(doc(db, "tasks", crypto.randomUUID()), {
+          text: title,
+          desc,
+          assigneeIds: [],
+          dueDate: null,
+          status: 'yapiliyor',
+          createdAt: new Date().toISOString()
+        });
+        showToast('Görev oluşturuldu', { label: 'Görevlere Git', onAction: () => setTab('tasks') });
+      } catch {
+        showToast('Görev oluşturulamadı');
+      }
+    }
+
+    // "+ Yeni gorev" dogrudan bos bir satir olusturur; baslik hucresi
+    // duzenlemeye acik gelir, kisi/durum/tarih satir icinden doldurulur
+    async function createEmptyTask() {
+      const id = crypto.randomUUID();
+      // Pano (kanban) gorunumunde yeni gorev butonu "Yapılıyor" sutununda durur;
+      // tabloda ise hangi durum filtresi aciksa gorev o durumla dogar ki satir gorunur olsun
+      const status = (taskViewMode === 'board' && !isNarrowViewport())
+        ? 'yapiliyor'
+        : (TASK_STATUSES.some(s => s.id === taskStatusFilter) ? taskStatusFilter : 'yapiliyor');
+      // Kisi filtresindeyken eklenen gorev o kisiye atanir
+      const assigneeIds = (taskFilter !== 'all' && taskFilter !== 'unassigned') ? [taskFilter] : [];
+      try {
+        await setDoc(doc(db, "tasks", id), {
+          text: '',
+          desc: '',
+          assigneeIds,
+          status,
+          dueDate: null,
+          createdAt: new Date().toISOString()
+        });
+        cellEdit = { kind: 'task-title', id, draft: '', draftTitle: '', hadFocus: true, focusTitle: false, selStart: null, selEnd: null };
+      } catch {
+        showToast('Görev oluşturulamadı');
+      }
+    }
+
     function renderViewToggle() {
       viewToggle.querySelectorAll('[data-view]').forEach(btn => {
         const active = btn.dataset.view === viewMode;
-        btn.classList.toggle('bg-violet-600', active);
+        btn.classList.toggle('accent-bg', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('text-slate-400', !active);
+      });
+    }
+
+    function renderTaskViewToggle() {
+      taskViewToggle.querySelectorAll('[data-task-view]').forEach(btn => {
+        const active = btn.dataset.taskView === taskViewMode;
+        btn.classList.toggle('accent-bg', active);
         btn.classList.toggle('text-white', active);
         btn.classList.toggle('text-slate-400', !active);
       });
     }
 
     function applyViewMode() {
-      notesContainer.className = viewMode === 'list'
-        ? 'view-list grid gap-2 grid-cols-1'
-        : 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3';
+      // Gorevler ve Bilgi Notlari tablo cizer; kart/liste secimi yalnizca Pano'da
+      if (activeTab === 'pano') {
+        notesContainer.className = viewMode === 'list'
+          ? 'view-list grid gap-2 grid-cols-1'
+          : 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3';
+      } else {
+        notesContainer.className = '';
+      }
+      viewToggle.classList.toggle('hidden', activeTab !== 'pano');
+      taskViewToggle.classList.toggle('hidden', activeTab !== 'tasks');
+      taskViewToggle.classList.toggle('flex', activeTab === 'tasks');
       renderViewToggle();
+      renderTaskViewToggle();
     }
 
     function closeNoteMenus() {
@@ -1229,39 +2369,155 @@
         if (note) navigator.clipboard.writeText(note.text)
           .then(() => showToast('Not kopyalandı'))
           .catch(() => showToast('Kopyalama başarısız'));
+        return;
+      }
+
+      const toTaskBtn = e.target.closest('[data-totask]');
+      if (toTaskBtn) {
+        const note = notes.find(n => n.id === toTaskBtn.dataset.totask);
+        if (note) createTaskFromText(note.text || '');
+        return;
+      }
+
+      // Tablo hucreleri: tiklaninca satir ici duzenlemeye gecer (linkler haric)
+      const cellBtn = e.target.closest('[data-cell]');
+      if (cellBtn && !e.target.closest('a')) {
+        const id = cellBtn.dataset.id;
+        const kind = cellBtn.dataset.cell;
+        if (kind === 'task-title') { const t = tasks.find(x => x.id === id); if (t) openCellEdit('task-title', id, t.text || ''); }
+        else if (kind === 'task-desc') { const t = tasks.find(x => x.id === id); if (t) openCellEdit('task-desc', id, t.desc || ''); }
+        else if (kind === 'doc-title') { const d = docs.find(x => x.id === id); if (d) openCellEdit('doc-title', id, d.title || ''); }
+        else if (kind === 'doc-body') { const d = docs.find(x => x.id === id); if (d) openCellEdit('doc-body', id, d.body || ''); }
+        return;
+      }
+
+      if (e.target.closest('[data-save-cell]')) { saveCellEdit(); return; }
+      if (e.target.closest('[data-cancel-cell]')) { cancelCellEdit(); return; }
+      if (e.target.closest('[data-new-task]')) { createEmptyTask(); return; }
+      if (e.target.closest('[data-new-doc]')) { openCellEdit('new-doc', null, '', ''); return; }
+
+      const personCell = e.target.closest('[data-person-cell]');
+      if (personCell) {
+        const key = 'p-' + personCell.dataset.personCell;
+        openMenuKey = openMenuKey === key ? null : key;
+        renderMain();
+        return;
+      }
+
+      const assigneeOpt = e.target.closest('[data-assignee-option]');
+      if (assigneeOpt) {
+        const sep = assigneeOpt.dataset.assigneeOption.indexOf('|');
+        const taskId = assigneeOpt.dataset.assigneeOption.slice(0, sep);
+        const email = assigneeOpt.dataset.assigneeOption.slice(sep + 1);
+        const task = tasks.find(t => t.id === taskId);
+        if (task) {
+          const cur = new Set(task.assigneeIds || []);
+          if (cur.has(email)) cur.delete(email); else cur.add(email);
+          try {
+            await updateDoc(doc(db, "tasks", taskId), { assigneeIds: [...cur] });
+          } catch (err) {
+            showToast('Kişi güncellenemedi');
+          }
+        }
+        return;
+      }
+
+      const statusOpt = e.target.closest('[data-status-option]');
+      if (statusOpt) {
+        const sep = statusOpt.dataset.statusOption.indexOf('|');
+        const taskId = statusOpt.dataset.statusOption.slice(0, sep);
+        const statusId = statusOpt.dataset.statusOption.slice(sep + 1);
+        await setTaskStatus(taskId, statusId);
+        openMenuKey = null;
+        renderMain();
+        return;
+      }
+
+      const statusCellBtn = e.target.closest('[data-status-cell]');
+      if (statusCellBtn) {
+        const key = 's-' + statusCellBtn.dataset.statusCell;
+        openMenuKey = openMenuKey === key ? null : key;
+        renderMain();
+        return;
+      }
+
+      const taskDeleteBtn = e.target.closest('[data-task-delete]');
+      if (taskDeleteBtn) {
+        if (cellEdit && cellEdit.id === taskDeleteBtn.dataset.taskDelete) cellEdit = null;
+        scheduleDelete('tasks', taskDeleteBtn.dataset.taskDelete, 'Görev silindi');
+        return;
+      }
+
+      const docPinBtn = e.target.closest('[data-doc-pin]');
+      if (docPinBtn) {
+        const d = docs.find(x => x.id === docPinBtn.dataset.docPin);
+        if (d) {
+          try {
+            await updateDoc(doc(db, "docs", d.id), { pinned: !d.pinned });
+          } catch (err) {
+            showToast('Sabitleme güncellenemedi');
+          }
+        }
+        return;
+      }
+
+      const docToTaskBtn = e.target.closest('[data-doc-totask]');
+      if (docToTaskBtn) {
+        const d = docs.find(x => x.id === docToTaskBtn.dataset.docTotask);
+        if (d) createTaskFromText([d.title, d.body].filter(Boolean).join('\n'));
+        return;
+      }
+
+      const docDeleteBtn = e.target.closest('[data-doc-delete]');
+      if (docDeleteBtn) {
+        if (cellEdit && cellEdit.id === docDeleteBtn.dataset.docDelete) cellEdit = null;
+        scheduleDelete('docs', docDeleteBtn.dataset.docDelete, 'Bilgi notu silindi');
+        return;
+      }
+
+      // Bos alana tiklama acik kisi panelini kapatir
+      if (openMenuKey) {
+        openMenuKey = null;
+        renderMain();
       }
     }
 
-    // Silme geri alinabilir: not once listeden gizlenir, 5 sn icinde
+    // Silme geri alinabilir: kayit once listeden gizlenir, 5 sn icinde
     // geri alinmazsa buluttan kalici olarak silinir
     function scheduleNoteDelete(noteId) {
       if (noteId === editingNoteId) { editingNoteId = null; editingDraft = null; }
-      pendingDeletes.set(noteId, setTimeout(() => commitNoteDelete(noteId), 5000));
-      renderSidebar();
-      renderNotes();
-      showToast('Not silindi', { label: 'Geri Al', onAction: () => undoNoteDelete(noteId) });
+      scheduleDelete('notes', noteId, 'Not silindi');
     }
 
-    async function commitNoteDelete(noteId) {
-      if (!pendingDeletes.has(noteId)) return;
-      pendingDeletes.delete(noteId);
+    function scheduleDelete(coll, id, message) {
+      pendingDeletes.set(coll + '/' + id, setTimeout(() => commitDelete(coll, id), 5000));
+      renderSidebar();
+      renderMain();
+      showToast(message, { label: 'Geri Al', onAction: () => undoDelete(coll, id) });
+    }
+
+    async function commitDelete(coll, id) {
+      const key = coll + '/' + id;
+      if (!pendingDeletes.has(key)) return;
+      pendingDeletes.delete(key);
       try {
-        await deleteDoc(doc(db, "notes", noteId));
+        await deleteDoc(doc(db, coll, id));
       } catch (e) {
         showToast('Silme işlemi başarısız');
         renderSidebar();
-        renderNotes();
+        renderMain();
       }
     }
 
-    function undoNoteDelete(noteId) {
-      const timer = pendingDeletes.get(noteId);
+    function undoDelete(coll, id) {
+      const key = coll + '/' + id;
+      const timer = pendingDeletes.get(key);
       if (timer === undefined) return;
       clearTimeout(timer);
-      pendingDeletes.delete(noteId);
+      pendingDeletes.delete(key);
       renderSidebar();
-      renderNotes();
-      showToast('Not geri alındı');
+      renderMain();
+      showToast('Geri alındı');
     }
 
     async function deleteBrand(brandId) {
@@ -1276,6 +2532,23 @@
         for (const note of affectedNotes) {
           const updatedIds = note.brandIds.filter(id => id !== brandId);
           await updateDoc(doc(db, "notes", note.id), {
+            brandIds: updatedIds.length ? updatedIds : [UNCATEGORIZED.id]
+          });
+        }
+
+        // Gorev ve bilgi notlarindan da ayni etiket dusurulur (yalnizca
+        // senkronize edilmis kayitlar bilinir; digerleri Tum filtresinde kalir)
+        const affectedTasks = tasks.filter(t => t.brandIds && t.brandIds.includes(brandId));
+        for (const t of affectedTasks) {
+          const updatedIds = t.brandIds.filter(id => id !== brandId);
+          await updateDoc(doc(db, "tasks", t.id), {
+            brandIds: updatedIds.length ? updatedIds : [UNCATEGORIZED.id]
+          });
+        }
+        const affectedDocs = docs.filter(d => d.brandIds && d.brandIds.includes(brandId));
+        for (const d of affectedDocs) {
+          const updatedIds = d.brandIds.filter(id => id !== brandId);
+          await updateDoc(doc(db, "docs", d.id), {
             brandIds: updatedIds.length ? updatedIds : [UNCATEGORIZED.id]
           });
         }
@@ -1360,34 +2633,138 @@
       }
       const del = e.target.closest('[data-delete-brand]');
       if (del) { e.stopPropagation(); deleteBrand(del.dataset.deleteBrand); return; }
+      const shortcut = e.target.closest('[data-task-shortcut]');
+      if (shortcut) {
+        taskFilter = 'all';
+        taskStatusFilter = shortcut.dataset.taskShortcut;
+        renderSidebar();
+        renderMain();
+        return;
+      }
       const filter = e.target.closest('[data-filter]');
-      if (filter) { activeFilter = filter.dataset.filter; renderSidebar(); renderNotes(); }
+      if (filter) { activeFilter = filter.dataset.filter; renderSidebar(); renderMain(); }
     });
+
+    tabNav.addEventListener('click', e => {
+      const btn = e.target.closest('[data-tab]');
+      if (btn) setTab(btn.dataset.tab);
+    });
+
+    taskFiltersEl.addEventListener('click', e => {
+      const boardBtn = e.target.closest('[data-board-date-filter]');
+      if (boardBtn) { boardDateFilter = boardBtn.dataset.boardDateFilter; renderMain(); return; }
+      const btn = e.target.closest('[data-task-filter]');
+      if (!btn) return;
+      taskStatusFilter = btn.dataset.taskFilter;
+      renderMain();
+    });
+
 
     notesContainer.addEventListener('click', handleNotesClick);
 
     notesContainer.addEventListener('keydown', e => {
+      const cellInput = e.target.closest('[data-cell-input], [data-cell-input-title]');
+      if (cellInput) {
+        if (e.key === 'Escape') { e.preventDefault(); cancelCellEdit(); return; }
+        const isTextarea = cellInput.tagName === 'TEXTAREA';
+        if (e.key === 'Enter' && !isTextarea) {
+          // Yeni bilgi notunda basliktan Enter ile govdeye gecilir
+          if (cellEdit && cellEdit.kind === 'new-doc' && cellInput.hasAttribute('data-cell-input-title')) {
+            e.preventDefault();
+            const body = notesContainer.querySelector('[data-cell-input]');
+            if (body) body.focus();
+            return;
+          }
+          e.preventDefault();
+          saveCellEdit();
+          return;
+        }
+        if (e.key === 'Enter' && isTextarea && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          saveCellEdit();
+        }
+        return;
+      }
+
       const ta = e.target.closest('[data-edit-input]');
       if (!ta) return;
       if (e.key === 'Escape') { e.preventDefault(); cancelNoteEdit(); }
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveNoteEdit(ta.dataset.editInput); }
     });
 
+    // Bitis tarihi hucresi: secim degisince dogrudan kaydedilir
+    notesContainer.addEventListener('change', async e => {
+      const due = e.target.closest('[data-due-input]');
+      if (!due) return;
+      try {
+        await updateDoc(doc(db, "tasks", due.dataset.dueInput), { dueDate: due.value || null });
+      } catch (err) {
+        showToast('Tarih güncellenemedi');
+      }
+    });
+
+    // Aciklama kutusu yazdikca buyur
+    notesContainer.addEventListener('input', e => {
+      const ta = e.target.closest('textarea[data-cell-input]');
+      if (ta) {
+        ta.style.height = 'auto';
+        ta.style.height = Math.min(ta.scrollHeight, 300) + 'px';
+      }
+    });
+
+    // Kanban surukle-birak: yalnizca masaustu (native HTML5 DnD, dokunmatikte
+    // guvenilir degil) — karti bir sutuna birakinca durumu o sutuna gecer
+    notesContainer.addEventListener('dragstart', e => {
+      const card = e.target.closest('[data-task-card]');
+      if (!card) return;
+      e.dataTransfer.setData('text/plain', card.dataset.taskCard);
+      e.dataTransfer.effectAllowed = 'move';
+      card.classList.add('opacity-50');
+    });
+    notesContainer.addEventListener('dragend', e => {
+      const card = e.target.closest('[data-task-card]');
+      if (card) card.classList.remove('opacity-50');
+    });
+    notesContainer.addEventListener('dragover', e => {
+      if (e.target.closest('[data-status-col]')) e.preventDefault();
+    });
+    notesContainer.addEventListener('drop', e => {
+      const col = e.target.closest('[data-status-col]');
+      if (!col) return;
+      e.preventDefault();
+      const taskId = e.dataTransfer.getData('text/plain');
+      if (taskId) setTaskStatus(taskId, col.dataset.statusCol);
+    });
+
     themeToggle.addEventListener('click', () => {
       setTheme(!isDark());
       renderSidebar();
-      renderNotes();
+      renderMain();
+    });
+
+    accentToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      accentPanel.classList.toggle('hidden');
+    });
+    accentPanel.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-accent]');
+      if (btn) applyAccent(btn.dataset.accent);
+    });
+    document.addEventListener('click', (e) => {
+      if (!accentPanel.classList.contains('hidden') && !e.target.closest('#accent-panel') && !e.target.closest('#accent-toggle')) {
+        accentPanel.classList.add('hidden');
+      }
     });
 
     searchInput.addEventListener('input', () => {
       searchQuery = searchInput.value;
-      renderNotes();
+      renderMain();
     });
 
     searchClear.addEventListener('click', () => {
       searchInput.value = '';
       searchQuery = '';
-      renderNotes();
+      renderMain();
       searchInput.focus();
     });
 
@@ -1398,6 +2775,25 @@
       localStorage.setItem(VIEW_KEY, viewMode);
       applyViewMode();
     });
+
+    taskViewToggle.addEventListener('click', e => {
+      const btn = e.target.closest('[data-task-view]');
+      if (!btn || btn.dataset.taskView === taskViewMode) return;
+      taskViewMode = btn.dataset.taskView;
+      localStorage.setItem(TASK_VIEW_KEY, taskViewMode);
+      applyViewMode();
+      renderMain();
+    });
+
+    let resizeRaf = null;
+    window.addEventListener('resize', () => {
+      if (resizeRaf) return;
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = null;
+        if (activeTab === 'tasks') renderTaskFilters();
+      });
+    });
+
     applyViewMode();
 
     toggleBrandForm.addEventListener('click', () => {
@@ -1419,37 +2815,11 @@
     noteInput.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addNote(); });
 
     function updateComposePreview() {
-      const text = noteInput.value;
-
       // Yazdikca buyuyen kutu
       noteInput.style.height = 'auto';
       noteInput.style.height = Math.min(noteInput.scrollHeight, 240) + 'px';
 
-      if (!text.trim()) {
-        composePreview.classList.add('hidden');
-        composePreview.classList.remove('flex');
-        composePreview.innerHTML = '';
-        return;
-      }
-
-      const ids = detectBrandIds(text);
-      let html = '';
-      if (ids.length === 1 && ids[0] === UNCATEGORIZED.id) {
-        html += `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-          Marka algılanmadı</span>`;
-      } else {
-        html += ids.map(renderBrandBadge).join('');
-      }
-
-      (text.match(URL_RE) || []).forEach(url => {
-        const meta = linkMeta(url);
-        html += `<span class="link-chip" style="--chip:${meta.color}"><span class="link-chip-dot"></span>${escapeHtml(meta.label)}</span>`;
-      });
-
-      composePreview.innerHTML = html;
-      composePreview.classList.remove('hidden');
-      composePreview.classList.add('flex');
+      renderPreview(composePreview, noteInput.value, false);
     }
 
     noteInput.addEventListener('input', updateComposePreview);
@@ -1480,6 +2850,8 @@
         if (!parts.some(p => p.includes(piece))) parts.push(piece);
       }
       if (!parts.length) return;
+      // Paylasilan icerik her zaman Pano'daki compose kutusuna duser
+      if (activeTab !== 'pano') setTab('pano');
       const shared = parts.join(' ');
       const current = noteInput.value.trim();
       noteInput.value = current ? current + ' ' + shared : shared;
@@ -1525,22 +2897,37 @@
       if (e.key === 'Escape') {
         hideInstallHint();
         closeNoteMenus();
+        accentPanel.classList.add('hidden');
+        if (openMenuKey) { openMenuKey = null; renderMain(); }
         document.getElementById('admin-modal').classList.add('hidden');
       }
     });
     document.addEventListener('click', e => {
-      if (!e.target.closest('#notes-container')) closeNoteMenus();
+      // composedPath() kullanilir: handleNotesClick ayni tikta notesContainer.innerHTML'i
+      // degistirebiliyor, bu da e.target'i DOM'dan koparir ve e.target.closest(...) artik
+      // hicbir ust elemani bulamaz. composedPath() ise olay gonderilirken (mutasyondan once)
+      // hesaplanan gercek yolu dondurur, o yuzden guvenilir kalir.
+      if (!e.composedPath().includes(notesContainer)) {
+        closeNoteMenus();
+        if (openMenuKey) { openMenuKey = null; renderMain(); }
+      }
     });
     // Bekleme suresi dolmadan sayfa kapanirsa silmeler son bir deneme ile isletilir
     window.addEventListener('pagehide', () => {
-      pendingDeletes.forEach((timer, noteId) => {
+      pendingDeletes.forEach((timer, key) => {
         clearTimeout(timer);
-        deleteDoc(doc(db, "notes", noteId)).catch(() => {});
+        const [coll, id] = key.split('/');
+        deleteDoc(doc(db, coll, id)).catch(() => {});
       });
       pendingDeletes.clear();
     });
     updateInstallButton();
     updateThemeColorMeta();
+    renderTabNav();
+    renderComposer();
+    applyViewMode();
+    // applyAccent zaten sidebar/main render eder; acilista ayrica tekrarlamaya gerek yok
+    applyAccent(currentAccent);
     handleSharedContent();
 
     if ('serviceWorker' in navigator) {
@@ -1670,10 +3057,21 @@
     }
 
     function grantAccess(user) {
+      currentUserEmail = normalizeEmail(user.email);
+      renderTabNav();
       const admin = normalizeEmail(user.email) === ADMIN_EMAIL;
       adminBtn.classList.toggle('hidden', !admin);
       adminBtn.classList.toggle('flex', admin);
-      if (admin) startAdminWatch();
+      if (admin) {
+        startAdminWatch();
+        // Yonetici onay listesinde dogal olarak bulunmaz; gorev atama
+        // listesinde gorunebilmesi icin kendini de onaylilara yazar
+        setDoc(doc(db, "allowedUsers", ADMIN_EMAIL), {
+          email: ADMIN_EMAIL,
+          name: user.displayName || '',
+          photo: user.photoURL || ''
+        }, { merge: true }).catch(() => {});
+      }
       showAuthView('app');
       initFirebaseSync();
     }
@@ -1691,6 +3089,7 @@
       updateUserBar(user);
 
       if (!user) {
+        currentUserEmail = null;
         stopFirebaseSync();
         stopAdminWatch();
         adminBtn.classList.add('hidden');
@@ -1740,9 +3139,10 @@
     // Cikista geri alinabilir silmeler bekletilmeden isletilir; oturum
     // kapandiktan sonra veritabanina yazma izni kalmaz
     function flushPendingDeletes() {
-      pendingDeletes.forEach((timer, noteId) => {
+      pendingDeletes.forEach((timer, key) => {
         clearTimeout(timer);
-        deleteDoc(doc(db, "notes", noteId)).catch(() => {});
+        const [coll, id] = key.split('/');
+        deleteDoc(doc(db, coll, id)).catch(() => {});
       });
       pendingDeletes.clear();
       hideToast();
