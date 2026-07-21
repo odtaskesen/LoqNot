@@ -24,20 +24,10 @@
       }
     })();
   </script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="./tailwind.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: { sans: ['"DM Sans"', 'system-ui', 'sans-serif'] },
-        },
-      },
-    };
-  </script>
   <style>
     body {
       font-family: 'DM Sans', system-ui, sans-serif;
@@ -560,6 +550,7 @@
       { id: 'yapiliyor', name: 'Yapılıyor' },
       { id: 'beklemede', name: 'Beklemede' },
       { id: 'bitti',     name: 'Bitti' },
+      { id: 'archive',   name: 'Arşiv' },
     ];
     const MEMBER_COLORS = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#14b8a6', '#a855f7', '#f97316', '#84cc16'];
 
@@ -589,6 +580,7 @@
     let brands = [];
     let notes = [];
     let tasks = [];
+    let archivedTasks = [];
     let docs = [];
     // Gorev atanabilecek kisiler = onaylanmis kullanicilar (allowedUsers)
     let team = [];
@@ -618,6 +610,7 @@
     let freshNoteIds = new Set();
     let notesLoaded = false;
     let tasksLoaded = false;
+    let tasksArchiveLoaded = false;
     let docsLoaded = false;
     let notesSyncStarted = false;
     let tasksSyncStarted = false;
@@ -631,6 +624,8 @@
     // Boylece bos bir Firestore belgesi ve dinleyici/render yarisi olusmaz.
     let newTaskDraft = null;
     let cellSavePromise = null;
+    let noteSubmitPromise = null;
+    const taskCreationLocks = new Set();
     // Acik kisi atama paneli ('p-<taskId>') — yeniden render sonrasi acik kalabilsin diye izlenir
     let openMenuKey = null;
     // Anahtarlar "koleksiyon/dokumanId" bicimindedir; silme uc koleksiyonda da geri alinabilir
@@ -903,6 +898,8 @@
         renderMain();
       }, () => {}));
 
+      // Rozet, hangi sekme acik olursa olsun ilk goruntude dogru olmalidir.
+      ensureTabSync('tasks');
       ensureTabSync(activeTab);
     }
 
@@ -965,6 +962,15 @@
         renderMain();
         sweepDoneTasks(loaded);
       }, handleSyncError));
+      // Arşiv ayrı koleksiyonda tutulur; görünür ve geri yüklenebilir kalır.
+      syncUnsubs.push(onSnapshot(collection(db, "tasksArchive"), (snapshot) => {
+        let loaded = [];
+        snapshot.forEach((taskDoc) => loaded.push({ id: taskDoc.id, ...taskDoc.data(), archived: true }));
+        archivedTasks = loaded;
+        tasksArchiveLoaded = true;
+        renderTaskFilters();
+        renderMain();
+      }, handleSyncError));
     }
 
     function startDocsSync() {
@@ -995,12 +1001,14 @@
       brands = [];
       notes = [];
       tasks = [];
+      archivedTasks = [];
       docs = [];
       team = [];
       knownNoteIds = null;
       freshNoteIds = new Set();
       notesLoaded = false;
       tasksLoaded = false;
+      tasksArchiveLoaded = false;
       docsLoaded = false;
       notesSyncStarted = false;
       tasksSyncStarted = false;
@@ -1131,9 +1139,12 @@
     }
 
     function linkify(text) {
-      return escapeHtml(text).replace(
-        URL_RE,
-        url => {
+      // URL'yi HTML'e kaçırmadan önce ayır: aksi halde & karakteri &amp; olur ve
+      // URL yapıcısı bunu gerçek sorgu parametresi yerine metin olarak saklar.
+      const parts = String(text || '').split(URL_RE);
+      return parts.map((part, index) => {
+        if (index % 2 === 0) return escapeHtml(part);
+        const url = part;
           const safeUrl = safeExternalUrl(url);
           if (!safeUrl) return escapeHtml(url);
           const meta = linkMeta(safeUrl);
@@ -1141,8 +1152,7 @@
           return `<a href="${safeAttr}" target="_blank" rel="noopener noreferrer" class="link-chip" style="--chip:${meta.color}" title="${safeAttr}">` +
             `<span class="link-chip-dot"></span>${escapeHtml(meta.label)}` +
             `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M7 17L17 7M7 7h10v10"/></svg></a>`;
-        }
-      );
+      }).join('');
     }
 
     function renderBrandBadge(brandId) {
@@ -1631,6 +1641,21 @@
       }
     }
 
+    async function restoreArchivedTask(taskId) {
+      const task = archivedTasks.find(t => t.id === taskId);
+      if (!task) return;
+      const { id, archived, archivedAt, ...data } = task;
+      try {
+        const batch = writeBatch(db);
+        batch.set(doc(db, 'tasks', id), data);
+        batch.delete(doc(db, 'tasksArchive', id));
+        await batch.commit();
+        showToast('Görev aktif listeye geri yüklendi');
+      } catch {
+        showToast('Görev geri yüklenemedi');
+      }
+    }
+
     // Ayni e-posta her cihazda ayni rengi alir
     function memberColor(email) {
       let h = 0;
@@ -1687,8 +1712,8 @@
 
     // Kisi filtresi + arama, tablo/kart ve pano gorunumlerinin ortak taban havuzu
     function baseTaskPool() {
-      let list = visibleTasks();
-      if (newTaskDraft && !list.some(t => t.id === newTaskDraft.id)) list = [newTaskDraft, ...list];
+      let list = taskViewFilter === 'archive' ? archivedTasks : visibleTasks();
+      if (taskViewFilter !== 'archive' && newTaskDraft && !list.some(t => t.id === newTaskDraft.id)) list = [newTaskDraft, ...list];
       if (taskFilter === 'unassigned') list = list.filter(t => !(t.assigneeIds || []).length);
       else if (taskFilter !== 'all') list = list.filter(t => (t.assigneeIds || []).includes(taskFilter));
 
@@ -1706,6 +1731,7 @@
     // Tablo ve mobil kart listesi: durum/tarih cipleri (Bugün/Geciken/Yapılıyor/...) tek secimli
     function getFilteredTasks() {
       let list = baseTaskPool();
+      if (taskViewFilter === 'archive') return sortTasks(list);
       if (taskViewFilter === 'bugun') list = list.filter(t => t.localDraft || isDueToday(t));
       else if (taskViewFilter === 'geciken') list = list.filter(t => t.localDraft || isOverdue(t));
       else if (taskViewFilter !== 'all') list = list.filter(t => t.localDraft || t.status === taskViewFilter);
@@ -1743,8 +1769,9 @@
       // yalnizca tarih daraltmasi (Tümü/Bugün/Geciken) gosterilir. Mobilde ise pano
       // devre disi kalip her zaman duz kart listesine dusuldugu icin durum cipleri kalir.
       if (taskViewMode === 'board' && !isNarrowViewport()) {
-        const counts = { all: pool.length, bugun: pool.filter(isDueToday).length, geciken: pool.filter(isOverdue).length };
-        taskFiltersEl.innerHTML = BOARD_DATE_FILTERS.map(f => {
+        const counts = { all: pool.length, bugun: pool.filter(isDueToday).length, geciken: pool.filter(isOverdue).length, archive: archivedTasks.length };
+        const boardFilters = [...BOARD_DATE_FILTERS, { id: 'archive', name: 'Arşiv' }];
+        taskFiltersEl.innerHTML = boardFilters.map(f => {
           const active = taskViewFilter === f.id;
           return `<button type="button" data-task-filter="${f.id}" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition ${chipCls(active)}">${f.name} · ${counts[f.id]}</button>`;
         }).join('');
@@ -1758,6 +1785,7 @@
         yapiliyor: pool.filter(t => t.status === 'yapiliyor').length,
         beklemede: pool.filter(t => t.status === 'beklemede').length,
         bitti: pool.filter(t => t.status === 'bitti').length,
+        archive: archivedTasks.length,
       };
 
       taskFiltersEl.innerHTML = TASK_FILTERS.map(f => {
@@ -1881,17 +1909,18 @@
     }
 
     function renderTaskRow(task) {
+      const action = task.archived
+        ? `<button type="button" data-task-restore="${task.id}" class="px-2 py-1 rounded-lg text-[11px] font-semibold text-violet-600 hover:bg-violet-50 dark:text-violet-300 dark:hover:bg-violet-950/40" title="Görevi aktif listeye geri yükle">Geri yükle</button>`
+        : `<button type="button" data-task-delete="${task.id}" class="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition" title="Görevi sil">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>`;
       return `<div class="${TASK_GRID} border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition">
         ${renderTaskTitleCell(task)}
         ${renderTaskDescCell(task)}
         ${renderTaskStatusCell(task)}
         ${renderTaskPersonCell(task)}
         ${renderTaskDueCell(task)}
-        <div class="px-1 py-1.5 flex justify-end">
-          <button type="button" data-task-delete="${task.id}" class="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition" title="Görevi sil">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-          </button>
-        </div>
+        <div class="px-1 py-1.5 flex justify-end">${action}</div>
       </div>`;
     }
 
@@ -1903,9 +1932,12 @@
     // Kart govdesi: mobil tek-sutun liste ile masaustu pano kartlari ayni icerigi
     // paylasir, yalnizca disaridaki sarici (draggable, boyut) farklidir
     function renderTaskCardInner(task) {
-      return `<button type="button" data-task-delete="${task.id}" class="absolute top-1.5 right-1.5 z-10 p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition" title="Görevi sil">
+      const action = task.archived
+        ? `<button type="button" data-task-restore="${task.id}" class="absolute top-2 right-2 z-10 px-2 py-1 rounded-lg text-[11px] font-semibold text-violet-600 bg-violet-50 dark:text-violet-300 dark:bg-violet-950/40" title="Görevi aktif listeye geri yükle">Geri yükle</button>`
+        : `<button type="button" data-task-delete="${task.id}" class="absolute top-1.5 right-1.5 z-10 p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition" title="Görevi sil">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-        </button>
+        </button>`;
+      return `${action}
         <div class="pr-8">${renderTaskTitleCell(task)}</div>
         ${renderTaskDescCell(task)}
         <div class="flex flex-wrap items-center gap-1 px-1 py-1">
@@ -1946,7 +1978,7 @@
       return `<div class="flex gap-3 overflow-x-auto pb-2 items-start">${cols}</div>`;
     }
 
-    function renderTaskTableHtml(filtered, emptyMsg) {
+    function renderTaskTableHtml(filtered, emptyMsg, showNew = true) {
       const header = `<div class="${TASK_GRID} text-[11px] font-semibold uppercase tracking-wide text-slate-400">
         <div class="px-3 py-2">Görev</div>
         <div class="px-3 py-2">Açıklama</div>
@@ -1957,7 +1989,7 @@
       </div>`;
 
       const emptyRow = `<div class="border-t border-slate-100 dark:border-slate-800 px-3 py-8 text-sm text-slate-400 text-center">${emptyMsg}</div>`;
-      const newRow = `<div class="border-t border-slate-100 dark:border-slate-800 px-3 py-2">${NEW_TASK_BTN}</div>`;
+      const newRow = showNew ? `<div class="border-t border-slate-100 dark:border-slate-800 px-3 py-2">${NEW_TASK_BTN}</div>` : '';
 
       return `<div class="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:bg-[#111113] dark:border-[#2a2a2e]">
         <div class="min-w-[900px]">${header}${filtered.length ? filtered.map(renderTaskRow).join('') : emptyRow}${newRow}</div>
@@ -1967,7 +1999,8 @@
     function renderTasks() {
       captureCellDraft();
       const filtered = getFilteredTasks();
-      const boardMode = taskViewMode === 'board';
+      const archivedView = taskViewFilter === 'archive';
+      const boardMode = taskViewMode === 'board' && !archivedView;
       const boardList = boardMode ? getBoardTasks() : [];
       const activeCount = boardMode ? boardList.length : filtered.length;
 
@@ -1993,10 +2026,10 @@
         : `<div class="rounded-2xl border border-slate-200/80 dark:border-[#2a2a2e] bg-white dark:bg-[#111113] px-3 py-8 text-sm text-slate-400 text-center">${emptyMsg}</div>`;
       const mobileHtml = `<div class="sm:hidden space-y-2.5">
         ${mobileCards}
-        <div class="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 px-3 py-3">${NEW_TASK_BTN}</div>
+        ${archivedView ? '' : `<div class="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 px-3 py-3">${NEW_TASK_BTN}</div>`}
       </div>`;
 
-      const desktopInner = boardMode ? renderTaskBoardHtml(boardList) : renderTaskTableHtml(filtered, emptyMsg);
+      const desktopInner = boardMode ? renderTaskBoardHtml(boardList) : renderTaskTableHtml(filtered, emptyMsg, !archivedView);
       const desktopHtml = `<div class="hidden sm:block">${desktopInner}</div>`;
 
       notesContainer.innerHTML = mobileHtml + desktopHtml;
@@ -2083,6 +2116,26 @@
       </div>`;
     }
 
+    function renderDocCardMobile(d) {
+      const badges = (d.brandIds || []).map(renderBrandBadge).join('');
+      return `<article class="rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:bg-[#111113] dark:border-[#2a2a2e] ${d.pinned ? 'ring-1 ring-amber-200 dark:ring-amber-900/50' : ''}">
+        ${renderDocTitleCell(d)}
+        <div class="border-t border-slate-100 dark:border-slate-800">${renderDocBodyCell(d)}</div>
+        <div class="border-t border-slate-100 dark:border-slate-800 px-3 py-2 flex flex-wrap items-center gap-2">
+          <div class="flex flex-wrap gap-1 flex-1 min-w-0">${badges}</div>
+          <button type="button" data-doc-pin="${d.id}" class="p-1.5 rounded-lg text-slate-300 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition" title="${d.pinned ? 'Sabitlemeyi kaldır' : 'Sabitle'}">
+            <svg class="w-4 h-4" fill="${d.pinned ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+          </button>
+          <button type="button" data-doc-totask="${d.id}" class="p-1.5 rounded-lg text-slate-300 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-950/40 transition" title="Göreve çevir">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          </button>
+          <button type="button" data-doc-delete="${d.id}" class="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition" title="Bilgi notunu sil">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+      </article>`;
+    }
+
     function renderDocs() {
       captureCellDraft();
       const filtered = getFilteredDocs();
@@ -2124,9 +2177,14 @@
             Yeni bilgi notu
           </button>`;
 
-      notesContainer.innerHTML = `<div class="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:bg-[#111113] dark:border-[#2a2a2e]">
+      const mobileHtml = `<div class="sm:hidden space-y-2.5">
+        ${filtered.length ? filtered.map(renderDocCardMobile).join('') : emptyRow}
+        ${newRow}
+      </div>`;
+      const desktopHtml = `<div class="hidden sm:block overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:bg-[#111113] dark:border-[#2a2a2e]">
         <div class="min-w-[760px]">${header}${filtered.length ? filtered.map(renderDocRow).join('') : emptyRow}${newRow}</div>
       </div>`;
+      notesContainer.innerHTML = mobileHtml + desktopHtml;
       focusCellInput();
     }
 
@@ -2305,9 +2363,10 @@
 
     // Not ya da bilgi notundan tek tikla gorev uretir: ilk satir gorev adi,
     // kalani aciklama olur
-    async function createTaskFromText(text) {
+    async function createTaskFromText(text, sourceKey = text) {
       const trimmed = (text || '').trim();
-      if (!trimmed) return;
+      if (!trimmed || taskCreationLocks.has(sourceKey)) return;
+      taskCreationLocks.add(sourceKey);
       const lines = trimmed.split('\n');
       const title = lines[0].slice(0, 140);
       const desc = ((lines[0].length > 140 ? '…' + lines[0].slice(140) + '\n' : '') + lines.slice(1).join('\n')).trim();
@@ -2323,6 +2382,8 @@
         showToast('Görev oluşturuldu', { label: 'Görevlere Git', onAction: () => setTab('tasks') });
       } catch {
         showToast('Görev oluşturulamadı');
+      } finally {
+        taskCreationLocks.delete(sourceKey);
       }
     }
 
@@ -2483,7 +2544,7 @@
       const toTaskBtn = e.target.closest('[data-totask]');
       if (toTaskBtn) {
         const note = notes.find(n => n.id === toTaskBtn.dataset.totask);
-        if (note) createTaskFromText(note.text || '');
+        if (note) await createTaskFromText(note.text || '', 'note/' + note.id);
         return;
       }
 
@@ -2582,6 +2643,12 @@
         return;
       }
 
+      const taskRestoreBtn = e.target.closest('[data-task-restore]');
+      if (taskRestoreBtn) {
+        await restoreArchivedTask(taskRestoreBtn.dataset.taskRestore);
+        return;
+      }
+
       const docPinBtn = e.target.closest('[data-doc-pin]');
       if (docPinBtn) {
         const d = docs.find(x => x.id === docPinBtn.dataset.docPin);
@@ -2598,7 +2665,7 @@
       const docToTaskBtn = e.target.closest('[data-doc-totask]');
       if (docToTaskBtn) {
         const d = docs.find(x => x.id === docToTaskBtn.dataset.docTotask);
-        if (d) createTaskFromText([d.title, d.body].filter(Boolean).join('\n'));
+        if (d) await createTaskFromText([d.title, d.body].filter(Boolean).join('\n'), 'doc/' + d.id);
         return;
       }
 
@@ -2698,6 +2765,13 @@
     }
 
     async function addNote() {
+      if (noteSubmitPromise) return noteSubmitPromise;
+      noteSubmitPromise = commitNote();
+      try { return await noteSubmitPromise; }
+      finally { noteSubmitPromise = null; }
+    }
+
+    async function commitNote() {
       const text = noteInput.value.trim();
       if (!text) {
         noteInput.focus();
@@ -2707,6 +2781,8 @@
       }
 
       const noteId = crypto.randomUUID();
+      addBtn.disabled = true;
+      addBtn.setAttribute('aria-busy', 'true');
       try {
         await setDoc(doc(db, "notes", noteId), {
           text,
@@ -2721,6 +2797,9 @@
         noteInput.focus();
       } catch (error) {
         showToast('Not buluta kaydedilemedi');
+      } finally {
+        addBtn.disabled = false;
+        addBtn.removeAttribute('aria-busy');
       }
     }
 
@@ -3307,20 +3386,23 @@
       }
     });
 
-    // Cikista geri alinabilir silmeler bekletilmeden isletilir; oturum
-    // kapandiktan sonra veritabanina yazma izni kalmaz
-    function flushPendingDeletes() {
+    // Çıkışta, oturum yetkisi kalkmadan tüm bekleyen silmeleri tamamla.
+    async function flushPendingDeletes() {
+      const deletes = [];
       pendingDeletes.forEach((timer, key) => {
         clearTimeout(timer);
         const [coll, id] = key.split('/');
-        deleteDoc(doc(db, coll, id)).catch(() => {});
+        deletes.push(deleteDoc(doc(db, coll, id)));
       });
       pendingDeletes.clear();
       hideToast();
+      const results = await Promise.allSettled(deletes);
+      return results.every(result => result.status === 'fulfilled');
     }
 
     async function handleSignOut() {
-      flushPendingDeletes();
+      const deletesComplete = await flushPendingDeletes();
+      if (!deletesComplete) showToast('Bazı silmeler tamamlanamadı');
       try { await signOut(auth); } catch { showToast('Çıkış yapılamadı'); }
     }
 
